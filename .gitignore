@@ -1,2 +1,6 @@
 .DS_Store
 .sites-runtime/
+node_modules/
+dist/
+.local/
+server/assets.generated.mjs

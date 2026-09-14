@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Crossing } from '../dist/engine.mjs';
+import { Crossing } from '../public/engine.mjs';
 const advance=(g,seconds)=>{for(let i=0;i<Math.ceil(seconds*60);i++)g.tick(1/60)};
 const clean=mode=>{const g=new Crossing(()=>.5);g.reset(mode);g.spawn=999;g.pickup=999;return g};
 // The same elapsed simulation time is used regardless of renderer frame rate.
