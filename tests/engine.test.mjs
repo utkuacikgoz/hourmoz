@@ -37,3 +37,8 @@ console.log('PASS: movement bounds, boost, cooldown, collision grace, repairs, i
  const traffic=clean('block');traffic.time=24;traffic.tick(1/60);const ship=traffic.add('tanker',0,-40,{vz:0});advance(traffic,1);assert.equal(ship.x,0);advance(traffic,2);assert.notEqual(ship.x,0);assert.equal(traffic.checkpointUntil,0);
 }
 console.log('PASS: satire warning, traffic movement, payoff cost, safe passage, restart.');
+{
+ const g=clean('run');g.player.invincible=0;g.add('missile',5,21,{vz:12,r:.8});advance(g,1);const awards=g.events.filter(e=>e.type==='nearMiss');assert.equal(awards.length,1);assert.equal(awards[0].points,50);assert.equal(g.player.hull,100);advance(g,1);assert.equal(g.events.filter(e=>e.type==='nearMiss').length,1);
+ const protectedRun=clean('run');protectedRun.add('missile',5,21,{vz:12,r:.8});advance(protectedRun,1);assert.equal(protectedRun.nearMisses,0);
+}
+console.log('PASS: close-call detection, exact points, single award, immunity exclusion.');
