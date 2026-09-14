@@ -24,3 +24,13 @@ assert.deepEqual([0,15,30,45,60,75,90].map(t=>difficultyAt(t).pressure),[1,1,2,3
 for(let seed=1;seed<=20;seed++){const g=new Crossing(seededRandom(seed));g.reset('run');for(let i=0;i<17*60;i++){g.tick(1/60);assert(!g.events.some(e=>e.type==='enemyfire'));g.events=[]}assert(g.player.hull>0)}
 const indexes=env.DB.sqlite.prepare('EXPLAIN QUERY PLAN SELECT name, score FROM scores WHERE mode = ? AND created_at >= ? ORDER BY score DESC LIMIT 10').all('run',0);assert(indexes.some(x=>x.detail.includes('idx_scores_mode_score')));
 console.log('PASS: deterministic replay, ranked save/read, idempotency, invalid names, cross-origin rejection, clock checks, source parsing, Fibonacci ramp, opening difficulty, leaderboard index.');
+
+// Launch metrics count runs once and never expose player identifiers.
+let metrics=await (await worker.fetch(req('/api/metrics'),env)).json();assert.equal(metrics.starts,1);assert.equal(metrics.players,1);
+for(const event of ['complete','complete','share','card'])assert.equal((await worker.fetch(req('/api/events',{runId:session.id,event},cookie),env)).status,200);
+assert.equal((await worker.fetch(req('/api/events',{runId:session.id,event:'complete'},'hormuz_player=00000000-0000-0000-0000-000000000000'),env)).status,404);
+assert.equal((await worker.fetch(req('/api/events',{runId:session.id,event:'arbitrary'},cookie),env)).status,400);
+env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-86400000,session.id);
+assert.equal((await worker.fetch(req('/api/runs',{mode:'run'},cookie),env)).status,201);
+metrics=await (await worker.fetch(req('/api/metrics'),env)).json();assert.equal(metrics.starts,2);assert.equal(metrics.players,1);assert.equal(metrics.replays,1);assert.equal(metrics.returningPlayers,1);assert.equal(metrics.completed,1);assert.equal(metrics.shared,1);assert.equal(metrics.cards,1);assert(!JSON.stringify(metrics).includes(session.id));assert(!JSON.stringify(metrics).includes('Captain Test'));
+console.log('PASS: launch metrics, duplicate event protection, ownership, returning players, aggregate-only output.');
