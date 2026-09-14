@@ -24,3 +24,5 @@
 @keyframes close-fade{from{opacity:1}to{opacity:0}}
 
 #ghost-score{position:fixed;z-index:4;bottom:28px;left:50%;transform:translateX(-50%);color:#91dbff;font-size:11px;letter-spacing:.6px;background:#062631b0;padding:7px 10px;pointer-events:none}@media(max-width:700px){#ghost-score{bottom:180px;font-size:10px}}
+
+#clip-dialog{width:min(760px,94vw);border:1px solid #7a9e97;background:#062631;color:#eaf5f1;padding:36px 18px 18px;border-radius:5px}#clip-dialog::backdrop{background:#001821dd}#clip-video{display:block;width:100%;max-height:65vh}#clip-video[hidden]{display:none}#clip-status{font-size:12px;color:#a6c2c3}#download-clip{display:inline-block;background:#ffc07a;color:#062631;padding:10px 20px;text-decoration:none;font-size:13px;font-weight:700}#download-clip[hidden],#watch-clip[hidden]{display:none}
