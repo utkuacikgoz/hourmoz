@@ -29,3 +29,11 @@ const clean=mode=>{const g=new Crossing(()=>.5);g.reset(mode);g.spawn=999;g.pick
  g.player.invincible=0;g.damage(100);assert.equal(g.phase,'end');assert.equal(g.win,false);
 }
 console.log('PASS: movement bounds, boost, cooldown, collision grace, repairs, interceptions, breaches, uninterrupted checkpoints, win/loss, restart.');
+// Satirical events stay deterministic and payoffs cannot be repeated or bought on credit.
+{
+ const g=clean('run');g.time=42;g.tick(1/60);assert.equal(g.phase,'play');assert(g.checkpointUntil>g.time);assert.equal(g.entities.filter(e=>e.checkpoint).length,4);
+ g.score=299;assert.equal(g.payCheckpoint(),false);g.score=700;assert.equal(g.payCheckpoint(),true);assert.equal(g.score,400);assert.equal(g.player.invincible,4);assert(!g.entities.some(e=>e.checkpoint));assert.equal(g.payCheckpoint(),false);
+ g.reset('run');assert.equal(g.payoffUntil,0);assert.equal(g.checkpointUntil,0);
+ const traffic=clean('block');traffic.time=24;traffic.tick(1/60);const ship=traffic.add('tanker',0,-40,{vz:0});advance(traffic,1);assert.equal(ship.x,0);advance(traffic,2);assert.notEqual(ship.x,0);assert.equal(traffic.checkpointUntil,0);
+}
+console.log('PASS: satire warning, traffic movement, payoff cost, safe passage, restart.');
