@@ -20,12 +20,12 @@ const clean=mode=>{const g=new Crossing(()=>.5);g.reset(mode);g.spawn=999;g.pick
  const hull=g.player.hull;g.add('tanker',20,49);g.tick(1/60);assert.equal(g.player.hull,hull-16);assert.equal(g.escaped,1);
 }
 {
- const g=clean('run');advance(g,35.1);assert.equal(g.phase,'upgrade');assert.equal(g.sector,2);
- const frozen=g.time;advance(g,2);assert.equal(g.time,frozen);assert.throws(()=>g.upgrade('unknown'));
- g.upgrade('engine');assert.equal(g.upgrades.engine,1);assert.equal(g.phase,'play');
- advance(g,35);assert.equal(g.phase,'upgrade');g.upgrade('repair');advance(g,35.1);
+ const g=clean('run');advance(g,35.1);assert.equal(g.phase,'play');assert.equal(g.sector,2);
+ const checkpointTime=g.time;advance(g,1);assert(g.time>checkpointTime);
+ advance(g,34);assert.equal(g.phase,'play');assert.equal(g.sector,3);
+ assert(!g.events.some(e=>e.type==='upgrade'));advance(g,35);
  assert.equal(g.phase,'end');assert.equal(g.win,true);assert.equal(g.delivered,3);
  g.reset('block');assert.equal(g.time,0);assert.equal(g.score,0);assert.equal(g.player.hull,100);assert.equal(g.entities.length,0);
  g.player.invincible=0;g.damage(100);assert.equal(g.phase,'end');assert.equal(g.win,false);
 }
-console.log('PASS: movement bounds, boost, cooldown, collision grace, repairs, interceptions, breaches, upgrades, win/loss, restart.');
+console.log('PASS: movement bounds, boost, cooldown, collision grace, repairs, interceptions, breaches, uninterrupted checkpoints, win/loss, restart.');
