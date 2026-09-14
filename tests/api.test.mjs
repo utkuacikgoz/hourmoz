@@ -34,3 +34,10 @@ env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.no
 assert.equal((await worker.fetch(req('/api/runs',{mode:'run'},cookie),env)).status,201);
 metrics=await (await worker.fetch(req('/api/metrics'),env)).json();assert.equal(metrics.starts,2);assert.equal(metrics.players,1);assert.equal(metrics.replays,1);assert.equal(metrics.returningPlayers,1);assert.equal(metrics.completed,1);assert.equal(metrics.shared,1);assert.equal(metrics.cards,1);assert(!JSON.stringify(metrics).includes(session.id));assert(!JSON.stringify(metrics).includes('Captain Test'));
 console.log('PASS: launch metrics, duplicate event protection, ownership, returning players, aggregate-only output.');
+// Shared ghosts come from server replay, and cannot be overwritten with invented paths.
+env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-110000,session.id);
+response=await worker.fetch(req('/api/challenge',{runId:session.id,records,ticks},cookie),env);assert.equal(response.status,200);
+let ghost=await (await worker.fetch(req('/api/challenge?id='+session.id),env)).json();assert.equal(ghost.score,client.score);assert.equal(ghost.seed,session.seed);assert(ghost.trail.length>1&&ghost.trail.length<1060);assert(!('player_id' in ghost));
+response=await worker.fetch(req('/api/challenge',{runId:session.id,records:[],ticks:1},cookie),env);assert.equal(response.status,200);assert.deepEqual(await (await worker.fetch(req('/api/challenge?id='+session.id),env)).json(),ghost);
+env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-86400000,session.id);assert.equal((await worker.fetch(req('/api/challenge?id='+session.id),env)).status,404);
+console.log('PASS: verified ghost path, immutable challenge, matching seed, daily expiry.');

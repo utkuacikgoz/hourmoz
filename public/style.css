@@ -22,3 +22,5 @@
 #close-call{position:fixed;z-index:5;left:50%;top:57%;transform:translateX(-50%);color:#c9ffe3;font:700 26px 'Barlow Condensed',sans-serif;pointer-events:none;opacity:0;text-shadow:0 2px 12px #03212c}#close-call.pop{animation:close-call .85s ease-out forwards}@keyframes close-call{0%{opacity:1;transform:translate(-50%,8px) scale(.9)}20%{opacity:1;transform:translate(-50%,0) scale(1.12)}100%{opacity:0;transform:translate(-50%,-30px)}}@media(prefers-reduced-motion:reduce){#close-call.pop{animation:close-fade .85s forwards}body:not(.in-game) #close-call{display:none}}
 
 @keyframes close-fade{from{opacity:1}to{opacity:0}}
+
+#ghost-score{position:fixed;z-index:4;bottom:28px;left:50%;transform:translateX(-50%);color:#91dbff;font-size:11px;letter-spacing:.6px;background:#062631b0;padding:7px 10px;pointer-events:none}@media(max-width:700px){#ghost-score{bottom:180px;font-size:10px}}

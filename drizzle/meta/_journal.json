@@ -15,6 +15,13 @@
       "when": 1789390696973,
       "tag": "0001_brave_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789398414985,
+      "tag": "0002_purple_sasquatch",
+      "breakpoints": true
     }
   ]
 }
