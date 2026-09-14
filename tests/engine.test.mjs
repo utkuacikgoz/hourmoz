@@ -47,3 +47,9 @@ console.log('PASS: close-call detection, exact points, single award, immunity ex
  const firing=clean('run');firing.time=20;const escort=firing.add('escort',-20,-20,{cool:0,vz:0});firing.tick(1/60);assert(Number.isFinite(escort.aim));assert(!firing.entities.some(e=>e.type==='missile'));advance(firing,.5);assert(!firing.entities.some(e=>e.type==='missile'));advance(firing,.4);assert(firing.entities.some(e=>e.type==='missile'));
 }
 console.log('PASS: mine formation gap and warning before missile launch.');
+{
+ const g=clean('run');g.time=90;g.player.z=-14;g.player.invincible=100;advance(g,8);assert(g.finale);assert.equal(g.phase,'end');assert(g.time<105);assert(g.win);
+ const block=clean('block');block.time=90;block.player.z=-14;advance(block,8);assert.equal(block.phase,'play');advance(block,7.1);assert.equal(block.phase,'end');
+ g.reset('run');assert.equal(g.finale,false);
+}
+console.log('PASS: visible exit timing, early forward escape, patrol countdown, reset.');
