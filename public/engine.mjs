@@ -10,7 +10,7 @@ export function difficultyAt(seconds) {
 }
 export class Crossing {
  constructor(random=Math.random){this.random=random;this.reset('run');this.phase='menu'}
- reset(mode){this.mode=mode;this.phase='play';this.time=0;this.sector=1;this.score=0;this.combo=1;this.comboTime=0;this.stopped=0;this.escaped=0;this.delivered=0;this.entities=[];this.shots=[];this.events=[];this.id=0;this.spawn=2;this.pickup=7;this.difficulty=difficultyAt(0);this.nextPost=24;this.postUntil=0;this.panicUntil=0;this.nextCheckpoint=42;this.checkpointUntil=0;this.payoffUntil=0;this.lastHit=null;this.nearMisses=0;this.player={x:0,z:23,vx:0,vz:0,hull:100,boost:100,cooldown:0,invincible:2,decoy:0};this.input={x:0,z:0,boost:false,fire:false,aim:null};}
+ reset(mode){this.mode=mode;this.phase='play';this.time=0;this.sector=1;this.score=0;this.combo=1;this.comboTime=0;this.stopped=0;this.escaped=0;this.delivered=0;this.entities=[];this.shots=[];this.events=[];this.id=0;this.formation=0;this.spawn=2;this.pickup=7;this.difficulty=difficultyAt(0);this.nextPost=24;this.postUntil=0;this.panicUntil=0;this.nextCheckpoint=42;this.checkpointUntil=0;this.payoffUntil=0;this.lastHit=null;this.nearMisses=0;this.player={x:0,z:23,vx:0,vz:0,hull:100,boost:100,cooldown:0,invincible:2,decoy:0};this.input={x:0,z:0,boost:false,fire:false,aim:null};}
  event(type,data={}){this.events.push({type,...data})}
  add(type,x,z,extra={}){const e={id:++this.id,type,x,z,vx:0,vz:0,age:0,hp:type==='tanker'?4:type==='escort'?3:1,r:type==='tanker'?3.4:type==='escort'?2.1:1.4,cool:1+this.random()*2,...extra};this.entities.push(e);return e}
  reward(n){this.score+=n*this.combo;this.comboTime=7;this.combo=Math.min(5,this.combo+1)}
@@ -23,17 +23,17 @@ export class Crossing {
  if(this.mode==='run'&&this.time>=this.nextCheckpoint){this.nextCheckpoint+=36;this.checkpointUntil=this.time+6;const gap=Math.floor(this.random()*5);for(let lane=0;lane<5;lane++)if(lane!==gap)this.add('mine',-24+lane*12,-36,{vz:10,checkpoint:true});this.event('checkpoint')}
  this.spawn-=dt;this.pickup-=dt;
  if(this.spawn<=0){
-  const d=this.difficulty;this.spawn=d.spawnInterval*(this.mode==='block'?1.2:1)*(1+this.random()*.15);
-  if(this.entities.length<150){
-   const x=(this.random()-.5)*52;
-   if(this.mode==='run'){
-    const type=!d.armed||this.random()<.3?'mine':'escort';
-    this.add(type,x,-60,{vz:d.speed,cool:2.5});
-   }else this.add(d.armed&&this.random()<.2?'escort':'tanker',x,-65,{vz:d.speed*.8});
+  const d=this.difficulty;this.spawn=Math.max(1.65,d.spawnInterval*2.2)*(this.mode==='block'?1.2:1);
+  if(this.entities.length<140){const pattern=this.formation++%3;
+   if(d.stage<2){const x=(this.random()-.5)*48;this.add(this.mode==='block'?'tanker':!d.armed?'mine':'escort',x,-60,{vz:d.speed,cool:2.5});}
+   else if(pattern===0&&this.mode==='run'){const gap=Math.floor(this.random()*5);for(let lane=0;lane<5;lane++)if(Math.abs(lane-gap)>0)this.add('mine',-24+lane*12,-60,{vz:d.speed});}
+   else if(pattern===1){const side=this.formation%2?1:-1;for(let i=0;i<2;i++)this.add('tanker',side*(24-i*9),-60-i*14,{vz:d.speed*.85,crossing:-side*5});}
+   else{for(const x of[-22,22])this.add(this.mode==='block'?'tanker':'escort',x,-60,{vz:d.speed,cool:2.5});}
   }
  }
+
  if(this.pickup<=0){this.pickup=12+this.random()*5;this.add('repair',(this.random()-.5)*48,-58,{vz:12})}
- const remove=new Set();for(const e of [...this.entities]){e.age+=dt;e.cool-=dt;e.z+=e.vz*dt;if(this.time>=this.postUntil&&this.time<this.panicUntil&&['tanker','escort'].includes(e.type))e.x=clamp(e.x+Math.sin((this.time-this.postUntil)*2.2+e.id)*dt*12,-29,29);if(e.type==='escort'){e.x=clamp(e.x+Math.sin(e.age*1.4+e.id)*dt*2.5,-29,29);if(this.difficulty.armed&&e.cool<=0&&e.z<p.z-6&&e.z>-42&&this.entities.length<180){e.cool=this.difficulty.fireInterval;const angle=Math.atan2(p.x-e.x,p.z-e.z);for(let shot=0;shot<this.difficulty.salvo;shot++){const a=angle+(shot-(this.difficulty.salvo-1)/2)*.18;this.add('missile',e.x,e.z+2,{vx:Math.sin(a)*this.difficulty.missileSpeed,vz:Math.cos(a)*this.difficulty.missileSpeed,r:.8})}this.event('enemyfire',{x:e.x,z:e.z})}}
+ const remove=new Set();for(const e of [...this.entities]){e.age+=dt;e.cool-=dt;e.z+=e.vz*dt;if(e.crossing)e.x=clamp(e.x+e.crossing*dt,-29,29);if(this.time>=this.postUntil&&this.time<this.panicUntil&&['tanker','escort'].includes(e.type))e.x=clamp(e.x+Math.sin((this.time-this.postUntil)*2.2+e.id)*dt*12,-29,29);if(e.type==='escort'){e.x=clamp(e.x+Math.sin(e.age*1.4+e.id)*dt*2.5,-29,29);if(this.difficulty.armed&&e.cool<=.85&&e.aim===undefined&&e.z<p.z-6&&e.z>-42){e.aim=Math.atan2(p.x-e.x,p.z-e.z);e.cool=.85;}if(e.aim!==undefined&&e.cool<=0&&this.entities.length<180){e.cool=this.difficulty.fireInterval;const angle=e.aim;delete e.aim;for(let shot=0;shot<this.difficulty.salvo;shot++){const a=angle+(shot-(this.difficulty.salvo-1)/2)*.18;this.add('missile',e.x,e.z+2,{vx:Math.sin(a)*this.difficulty.missileSpeed,vz:Math.cos(a)*this.difficulty.missileSpeed,r:.8})}this.event('enemyfire',{x:e.x,z:e.z})}}
  if(e.type==='missile'){if(p.decoy>0){e.vx+=(e.x-p.x)*dt*2;e.vz+=dt*8;}e.x+=e.vx*dt;}
  if(e.z>48||Math.abs(e.x)>55||e.age>18){remove.add(e);if(this.mode==='block'&&e.type==='tanker'){this.escaped++;this.lastHit='escaped';this.player.hull=Math.max(0,this.player.hull-16);this.combo=1;this.event('escaped');if(!this.player.hull)this.end(false)}else if(this.mode==='run'&&['mine','escort'].includes(e.type))this.score+=30;continue;}
  const clearance=Math.hypot((e.x-p.x)*.5,(e.z-p.z)*.75)-(e.r+1.4);

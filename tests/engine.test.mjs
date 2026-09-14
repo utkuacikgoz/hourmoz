@@ -42,3 +42,8 @@ console.log('PASS: satire warning, traffic movement, payoff cost, safe passage, 
  const protectedRun=clean('run');protectedRun.add('missile',5,21,{vz:12,r:.8});advance(protectedRun,1);assert.equal(protectedRun.nearMisses,0);
 }
 console.log('PASS: close-call detection, exact points, single award, immunity exclusion.');
+{
+ const g=clean('run');g.time=30;g.spawn=0;g.tick(1/60);assert.equal(g.entities.filter(e=>e.type==='mine').length,4);assert.equal(new Set(g.entities.map(e=>e.x)).size,4);
+ const firing=clean('run');firing.time=20;const escort=firing.add('escort',-20,-20,{cool:0,vz:0});firing.tick(1/60);assert(Number.isFinite(escort.aim));assert(!firing.entities.some(e=>e.type==='missile'));advance(firing,.5);assert(!firing.entities.some(e=>e.type==='missile'));advance(firing,.4);assert(firing.entities.some(e=>e.type==='missile'));
+}
+console.log('PASS: mine formation gap and warning before missile launch.');
