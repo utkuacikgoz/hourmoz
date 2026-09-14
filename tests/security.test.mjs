@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readJSON,limitRequest } from '../server/security.mjs';
+import { localDB } from '../scripts/local-db.mjs';
+import { Crossing,seededRandom } from '../public/engine.mjs';
+await assert.rejects(()=>readJSON(new Request('https://game.test',{method:'POST',body:'{"a":"long"}'}),4),{status:413});
+await assert.rejects(()=>readJSON(new Request('https://game.test',{method:'POST',body:'null'})),{status:400});
+const db=localDB();for(let i=0;i<16;i++)await limitRequest(new Request('https://game.test/api/scores',{method:'POST',headers:{'CF-Connecting-IP':'192.0.2.1',Cookie:'hormuz_player='+i}}),db);
+await assert.rejects(()=>limitRequest(new Request('https://game.test/api/scores',{method:'POST',headers:{'CF-Connecting-IP':'192.0.2.1'}}),db),{status:429});
+const a=new Crossing(seededRandom(12)),b=new Crossing(seededRandom(12));a.reset('run');b.reset('run');for(let i=0;i<50;i++){b.add('missile',0,-60);b.add('repair',0,-60)}b.entities=[];for(let i=0;i<1200;i++){a.player.invincible=b.player.invincible=999;a.tick(1/60);b.tick(1/60)}const course=g=>g.entities.filter(e=>e.type!=='missile').map(e=>[e.type,e.x,e.z,e.motionId]);assert.deepEqual(course(a),course(b));
+console.log('PASS: streamed body limits, malformed JSON, cookie-independent throttling, isolated course randomness.');

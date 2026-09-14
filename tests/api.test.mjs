@@ -1,3 +1,4 @@
+import { RULES_VERSION } from '../public/rules.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker,{replay,classifyStatus} from '../server/worker.mjs';
@@ -5,7 +6,7 @@ import { Crossing,seededRandom,difficultyAt } from '../public/engine.mjs';
 import { localDB } from '../scripts/local-db.mjs';
 const env={DB:localDB()},origin='https://game.example';
 const req=(path,data,cookie='')=>new Request(origin+path,{method:data?'POST':'GET',headers:{Origin:origin,'Content-Type':'application/json',Cookie:cookie},body:data?JSON.stringify(data):undefined});
-let response=await worker.fetch(req('/api/runs',{mode:'run'}),env);assert.equal(response.status,201);const cookie=response.headers.get('set-cookie').split(';')[0],session=await response.json();
+let response=await worker.fetch(req('/api/runs',{mode:'run',rules:RULES_VERSION}),env);assert.equal(response.status,201);const cookie=response.headers.get('set-cookie').split(';')[0],session=await response.json();
 const client=new Crossing(seededRandom(session.seed));client.reset('run');let ticks=0,records=[[0,'i',[0,0,0,0,null,null]]];
 while(client.phase!=='end'&&ticks<6302){client.tick(1/60);client.events=[];ticks++}
 assert.equal(client.phase,'end');const verified=replay(session.seed,'run',records,ticks);assert.equal(verified.score,client.score);assert.equal(verified.player.hull,client.player.hull);
@@ -31,7 +32,7 @@ for(const event of ['complete','complete','share','card'])assert.equal((await wo
 assert.equal((await worker.fetch(req('/api/events',{runId:session.id,event:'complete'},'hormuz_player=00000000-0000-0000-0000-000000000000'),env)).status,404);
 assert.equal((await worker.fetch(req('/api/events',{runId:session.id,event:'arbitrary'},cookie),env)).status,400);
 env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-86400000,session.id);
-assert.equal((await worker.fetch(req('/api/runs',{mode:'run'},cookie),env)).status,201);
+assert.equal((await worker.fetch(req('/api/runs',{mode:'run',rules:RULES_VERSION},cookie),env)).status,201);
 metrics=await (await worker.fetch(req('/api/metrics'),env)).json();assert.equal(metrics.starts,2);assert.equal(metrics.players,1);assert.equal(metrics.replays,1);assert.equal(metrics.returningPlayers,1);assert.equal(metrics.completed,1);assert.equal(metrics.shared,1);assert.equal(metrics.cards,1);assert(!JSON.stringify(metrics).includes(session.id));assert(!JSON.stringify(metrics).includes('Captain Test'));
 console.log('PASS: launch metrics, duplicate event protection, ownership, returning players, aggregate-only output.');
 // Shared ghosts come from server replay, and cannot be overwritten with invented paths.

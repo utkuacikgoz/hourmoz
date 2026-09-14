@@ -1,0 +1,1 @@
+ALTER TABLE `scores` ADD `rules` text DEFAULT 'legacy' NOT NULL;

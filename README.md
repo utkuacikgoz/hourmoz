@@ -15,7 +15,7 @@ Open the HTTP URL; opening an HTML file directly cannot run the modules or leade
 
 WASD/arrows steer, Shift boosts, Space deploys a decoy or fires the deck gun. Mouse aiming and touch joystick controls are supported. Escape pauses.
 
-Each run lasts up to 105 seconds. Fibonacci traffic pressure rises every 15 seconds: 1, 1, 2, 3, 5, 8, 13. There are no enemy missiles in the opening 18 seconds. Later stages increase traffic, projectile speed, firing frequency, and salvo size. Repairs and upgrades give players recovery opportunities. Active entities are bounded to protect rendering performance.
+Each run lasts up to 105 seconds. Difficulty rises every 15 seconds using a Fibonacci-based curve. There are no enemy missiles in the opening 18 seconds. Later stages increase traffic, projectile speed, firing frequency, and salvo size. Repair pickups give players recovery opportunities. Active entities are bounded to protect rendering performance.
 
 ## Leaderboards
 
@@ -32,3 +32,9 @@ The IMO status endpoint checks the current official Middle East page and caches 
 - Current status: [IMO Middle East report](https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx).
 
 Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required.
+
+## Release checks
+
+GitHub runs the simulation, API, replay export lifecycle and security checks on every push and pull request. Sites deployment remains explicit. Bump `public/rules.mjs` whenever simulation rules change; older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
+
+Rate limits use Cloudflare’s supplied client address hashed per minute, plus global request budgets. When that header is unavailable, requests share the fallback bucket. Distributed bots remain possible; watch request volume and tune limits before a large campaign. No raw client addresses are stored.
