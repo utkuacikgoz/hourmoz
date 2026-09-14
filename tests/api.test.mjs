@@ -40,5 +40,8 @@ env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.no
 response=await worker.fetch(req('/api/challenge',{runId:session.id,records,ticks},cookie),env);assert.equal(response.status,200);
 let ghost=await (await worker.fetch(req('/api/challenge?id='+session.id),env)).json();assert.equal(ghost.score,client.score);assert.equal(ghost.seed,session.seed);assert(ghost.trail.length>1&&ghost.trail.length<1060);assert(!('player_id' in ghost));
 response=await worker.fetch(req('/api/challenge',{runId:session.id,records:[],ticks:1},cookie),env);assert.equal(response.status,200);assert.deepEqual(await (await worker.fetch(req('/api/challenge?id='+session.id),env)).json(),ghost);
-env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-86400000,session.id);assert.equal((await worker.fetch(req('/api/challenge?id='+session.id),env)).status,404);
-console.log('PASS: verified ghost path, immutable challenge, matching seed, daily expiry.');
+env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-86400000,session.id);assert.equal((await worker.fetch(req('/api/challenge?id='+session.id),env)).status,200);
+const oldChallengeRun=await (await worker.fetch(req('/api/runs',{mode:'run',rules:RULES_VERSION,challenge:session.id},cookie),env)).json();assert.equal(oldChallengeRun.seed,session.seed);assert.equal(oldChallengeRun.ranked,false);
+assert.equal((await worker.fetch(req('/api/scores',{runId:oldChallengeRun.id,name:'Practice',records,ticks},cookie),env)).status,400);
+env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-31*86400000,session.id);assert.equal((await worker.fetch(req('/api/challenge?id='+session.id),env)).status,404);
+console.log('PASS: verified ghost path, immutable challenge, matching seed, practice-only old courses, 30-day expiry.');
