@@ -7,7 +7,7 @@ import { localDB } from '../scripts/local-db.mjs';
 const env={DB:localDB()},origin='https://game.example';
 const req=(path,data,cookie='')=>new Request(origin+path,{method:data?'POST':'GET',headers:{Origin:origin,'Content-Type':'application/json',Cookie:cookie},body:data?JSON.stringify(data):undefined});
 let response=await worker.fetch(req('/api/runs',{mode:'run',rules:RULES_VERSION}),env);assert.equal(response.status,201);const cookie=response.headers.get('set-cookie').split(';')[0],session=await response.json();
-const client=new Crossing(seededRandom(session.seed));client.reset('run');let ticks=0,records=[[0,'i',[0,0,0,0,null,null]]];
+const client=new Crossing(seededRandom(session.seed));client.reset('run',session.seed);let ticks=0,records=[[0,'i',[0,0,0,0,null,null]]];
 while(client.phase!=='end'&&ticks<6302){client.tick(1/60);client.events=[];ticks++}
 assert.equal(client.phase,'end');const verified=replay(session.seed,'run',records,ticks);assert.equal(verified.score,client.score);assert.equal(verified.player.hull,client.player.hull);
 // Wall-clock checks reject a fabricated instantaneous run.
@@ -45,3 +45,7 @@ const oldChallengeRun=await (await worker.fetch(req('/api/runs',{mode:'run',rule
 assert.equal((await worker.fetch(req('/api/scores',{runId:oldChallengeRun.id,name:'Practice',records,ticks},cookie),env)).status,400);
 env.DB.sqlite.prepare('UPDATE runs SET created_at = ? WHERE id = ?').run(Date.now()-31*86400000,session.id);assert.equal((await worker.fetch(req('/api/challenge?id='+session.id),env)).status,404);
 console.log('PASS: verified ghost path, immutable challenge, matching seed, practice-only old courses, 30-day expiry.');
+
+// Match the real browser lifecycle: one engine reused across starts with a fresh session seed.
+for(const mode of ['run','block']){const browser=new Crossing();for(const seed of [1234,9876,1234]){browser.reset(mode,seed);let tick=0;const input=[[0,'i',[0,0,0,0,null,null]]];while(browser.phase!=='end'&&tick<6302){browser.tick(1/60);browser.events=[];tick++}const server=replay(seed,mode,input,tick);assert.equal(server.score,browser.score);assert.equal(server.time,browser.time);assert.equal(server.player.hull,browser.player.hull)}}
+console.log('PASS: browser lifecycle and server replay agree across seeds, modes and restarts.');
