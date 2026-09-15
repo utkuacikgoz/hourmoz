@@ -4,3 +4,7 @@ node_modules/
 dist/
 .local/
 server/assets.generated.mjs
+
+.env
+.env.*
+!.env.example

@@ -22,12 +22,12 @@ await request('/api/runs',{mode:'run',rules:RULES_VERSION,analytics:false},cooki
 const saved={...config,schedule:[...config.schedule]};
 try{
  config.bookingUrl='https://example.com/book';config.schedule=[{id:'test-only',day:new Date().toISOString().slice(0,10),name:'Test sponsor',url:'https://example.com'}];
- assert.equal(sponsorship().sponsor.id,'test-only');assert.equal(sponsorship(Date.now()+86400000).sponsor,null);
+ assert.equal((await sponsorship()).sponsor.id,'test-only');assert.equal((await sponsorship(Date.now()+86400000)).sponsor,null);
  const sponsorId=crypto.randomUUID();await request('/api/visits',{id:sponsorId,source:'direct'},cookie);
  for(const event of ['sponsor_view','sponsor_view','sponsor_click','booking_click'])assert.equal((await request('/api/visit-events',{visitId:sponsorId,event},cookie)).status,200);
  assert.equal((await request('/api/visit-events',{visitId:sponsorId,event:'sponsor_click'},otherCookie)).status,404);
  m=await (await request('/api/metrics')).json();assert.equal(m.sponsorViews,1);assert.equal(m.sponsorClicks,1);assert.equal(m.bookingClicks,1);assert.equal(m.campaigns[0].views,1);
- config.schedule[0].url='javascript:alert(1)';assert.equal(sponsorship().sponsor,null);assert.equal((await request('/api/visit-events',{visitId:sponsorId,event:'sponsor_view'},cookie)).status,409);
+ config.schedule[0].url='javascript:alert(1)';assert.equal((await sponsorship()).sponsor,null);assert.equal((await request('/api/visit-events',{visitId:sponsorId,event:'sponsor_view'},cookie)).status,409);
 }finally{Object.assign(config,saved)}
 env.DB.sqlite.prepare('UPDATE visits SET created_at=?').run(Date.now()-31*86400000);await request('/api/visits',{id:crypto.randomUUID(),source:'direct'},cookie);assert.equal(env.DB.sqlite.prepare('SELECT COUNT(*) AS count FROM visits').get().count,1);
 console.log('PASS: source privacy, visit deduplication, cookie ownership, replay-safe funnel, analytics opt-out, dated sponsors, event deduplication, link safety and retention.');

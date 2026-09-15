@@ -22,12 +22,13 @@ export async function readJSON(request, maxBytes = 650000) {
 export async function limitRequest(request, database) {
   const path = new URL(request.url).pathname;
   const expensive = request.method === 'POST' && ['/api/scores', '/api/challenge'].includes(path);
+  const bidding = request.method === 'POST' && path === '/api/auction/bids';
   const bucket = Math.floor(Date.now() / 60000);
   // Cloudflare supplies this header. Never persist the raw network address.
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bucket + ':' + ip));
   const key = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-  for (const [scope, cap] of [[`global:${expensive ? 'verify' : 'api'}`, expensive ? 300 : 3000], [`${key}:${expensive ? 'verify' : 'api'}`, expensive ? 16 : 180]]) {
+  for (const [scope, cap] of [[`global:${expensive ? 'verify' : 'api'}`, expensive ? 300 : 3000], [`${key}:${expensive ? 'verify' : 'api'}`, bidding ? 6 : expensive ? 16 : 180]]) {
     const row = await database.prepare('INSERT INTO rate_limits (key, bucket, count) VALUES (?, ?, 1) ON CONFLICT(key, bucket) DO UPDATE SET count = count + 1 RETURNING count').bind(scope, bucket).first();
     if (row.count > cap) throw new RequestError('Too many requests. Try again in a minute.', 429);
   }

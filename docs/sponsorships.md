@@ -1,22 +1,35 @@
-# Daily sponsorships
+# Sponsor until outbid
 
-Configuration: `public/sponsors.json`. Currently no paid sponsor or booking contact is configured. Do not publish a fake sponsor to fill the slot.
+One public sponsor spot, starting at $5 USD. Each takeover must exceed the highest successful bid by at least $1, in whole dollars. The whole new bid is a one-time payment. A paid placement has no expiry and no minimum duration: a higher confirmed payment replaces it. Open checkout sessions never change the public price.
 
-- `bookingUrl`: the owner's approved public HTTPS booking/payment/contact link or `mailto:` address. Null hides the inquiry link.
-- `schedule`: confirmed sponsor days. Each entry has a unique lowercase `id`, `day` (`YYYY-MM-DD`, UTC), `name` (up to 60 characters), and HTTPS `url`.
-- One sponsor per UTC day. Builds reject duplicate days/IDs and invalid links/dates.
-- The sponsor name links to its site, labelled “TODAY’S SPONSOR”, on the menu and results. Gameplay stays uninterrupted.
-- Each day's placement starts and ends at UTC midnight, resolved on the server when the page loads. Already-open pages retain the placement they loaded; events after expiry are rejected.
-- Add a confirmed booking to the schedule and deploy the updated source before its date. The schedule is public; do not put contracts, emails, payment details or secrets in it.
+## Runtime setup
 
-Inquiries and payment are handled through the configured link. This does not create a payment processor account, take payment, reserve inventory, or automatically confirm bookings. Agree price and dates with the sponsor before adding it. No prices, sponsors, sales or revenue have been invented.
+Set these through Sites runtime environment settings, not source control or public files:
 
-## Measurement
+- `STRIPE_SECRET_KEY`: Stripe server key. Needs Checkout Sessions create/read and Refunds create permissions. Use test mode for integration checks first.
+- `STRIPE_WEBHOOK_SECRET`: signing secret for the endpoint below.
+- `AUCTION_OWNER_EMAIL`: the site owner's ChatGPT sign-in email, used only on the server to authorize sponsor management. Never a public contact address.
 
-`/stats.html` shows public aggregates for the last 30 days: visitors, visits, starts, completions, repeat plays, returning players, shares, challenge activity, traffic-source conversion, sponsor views/clicks and inquiry-link clicks. `/api/metrics` exposes the same aggregate data.
+Register `https://hourmuz-crossing.acikgozutku1.chatgpt.site/api/stripe/webhook` in Stripe with `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `charge.refunded`. Deploy the environment change with the saved source. Do not enable live payments until a complete test checkout and a stale-checkout refund have been verified using the real Stripe test environment. Local tests mock Stripe; they do not verify account permissions, delivery, receipts, or payment settlement.
 
-A view requires 50% visibility for one continuous second. Views and clicks count once per page visit across both placements. Client-reported counts can be blocked or manipulated, and are not audited billable impressions. Share counts do not confirm a social post; inquiry clicks do not confirm a booking. No revenue is inferred from clicks.
+The public page is `/sponsor.html`; owner controls are `/sponsor-admin.html`. Owner access uses dispatch-owned ChatGPT sign-in and an explicit server allowlist. The local dev server has no owner identity or payment credentials by default.
 
-Source categories come from `utm_source` or referring-site categories; raw query strings and referral URLs are not stored. For campaigns use `?utm_source=reddit`, `x`, `instagram`, `tiktok`, `youtube`, `facebook`, or `linkedin`. Challenge links take priority. Unknown sources are grouped as “other”.
+## Activation and race handling
 
-The existing anonymous leaderboard cookie identifies browsers; no analytics vendor key is needed. GPC/Do Not Track disables client analytics. Visit attribution begins with this release; historical runs are not retroactively attributed. Reports exclude records older than 30 days; subsequent visit/run requests clean up old records.
+The server creates an immutable bid before creating Stripe Checkout. Repeated attempts with the same ID reuse Stripe's idempotency key and session. Sponsor names and HTTPS URLs are validated; no user HTML is rendered or website content fetched.
+
+Only signed Stripe webhook data or a server-retrieved Checkout Session can activate sponsorship. USD amount, session ID, bid metadata, client reference, payment status and live/test mode must match. A success-page URL alone proves nothing.
+
+An atomic database comparison selects a new highest paid sponsor. Replayed events do not charge or refund twice. If an older/equal checkout completes after a higher bid was processed, it becomes `refund_pending`; the full amount is refunded with a stable Stripe idempotency key. Failure leaves that state intact for webhook retries. Refunds may take time to settle. The owner can inspect Stripe if a refund fails. Being outbid after activation does not refund a previously active placement.
+
+Open game tabs refresh sponsor placement every 15 seconds while visible. Sponsor clicks/views use the current sponsor ID, counted once per sponsor per visit. Removing/refunding the highest sponsor hides that placement without resurrecting a former sponsor or lowering the bid threshold. Owner controls can hide/show a placement; refunds are managed in Stripe. Automated disputes/chargeback handling and proactive moderation are not implemented.
+
+Stripe collects email and payment details; the game stores no bidder email or card details. Bid/payment references remain in D1 for transaction reconciliation. Only paid sponsor names, amounts and dates are public. Analytics reports are public aggregates, not audited billable impressions or guaranteed revenue.
+
+## Stats
+
+`/stats.html` refreshes every 15 seconds while visible. Online means an anonymous browser with a visible game tab checking in within 90 seconds; multiple tabs count once. Expired presence is removed on later check-ins. Other totals cover the last 30 days: game starts, unique players, visitors, finishes, repeat plays, returning players, shares, traffic sources and sponsor engagement. GPC/Do Not Track opts out of client analytics. No all-time totals are invented for records that were already deleted.
+
+## Legacy configuration
+
+`public/sponsors.json` remains a fallback for already-booked dated placements. The paid takeover has priority. No paid sponsor is prefilled, and its former booking URL is superseded by `/sponsor.html`.
