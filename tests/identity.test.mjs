@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {isOwner} from '../server/identity.mjs';
+const request=new Request('https://game.example',{headers:{'oai-authenticated-user-id':'spoof','oai-authenticated-user-email':'owner@example.com','Cf-Access-Authenticated-User-Email':'owner@example.com'}});
+const env={AUTH_PROVIDER:'cloudflare-access',AUCTION_OWNER_EMAIL:'owner@example.com',CF_ACCESS_AUD:'admin-app'};
+assert.equal(await isOwner(request,env),false);
+assert.equal(await isOwner(request,{AUCTION_OWNER_EMAIL:env.AUCTION_OWNER_EMAIL}),false);
+assert.equal(await isOwner(request,env,{access:{aud:'wrong',getIdentity:async()=>({email:env.AUCTION_OWNER_EMAIL})}}),false);
+assert.equal(await isOwner(request,env,{access:{aud:'admin-app',getIdentity:async()=>({email:'other@example.com'})}}),false);
+assert.equal(await isOwner(request,env,{access:{aud:'admin-app',getIdentity:async()=>({email:env.AUCTION_OWNER_EMAIL})}}),true);
+console.log('PASS: forged identity headers denied, Access audience and owner identity required.');

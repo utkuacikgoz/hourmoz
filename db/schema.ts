@@ -14,7 +14,7 @@ export const visits=sqliteTable('visits',{
 },t=>[index('idx_visits_created').on(t.createdAt),index('idx_visits_player_created').on(t.playerId,t.createdAt)]);
 
 export const sponsorBids=sqliteTable('sponsor_bids',{
- id:text('id').primaryKey(), playerId:text('player_id').notNull(), name:text('name').notNull(), url:text('url').notNull(), amount:integer('amount').notNull(), status:text('status').notNull().default('checkout'), createdAt:integer('created_at').notNull(), sessionId:text('session_id'), paymentIntent:text('payment_intent'), paidAt:integer('paid_at'), hidden:integer('hidden').notNull().default(0)
+ id:text('id').primaryKey(), playerId:text('player_id').notNull(), name:text('name').notNull(), url:text('url').notNull(), amount:integer('amount').notNull(), status:text('status').notNull().default('checkout'), testMode:integer('test_mode').notNull().default(0), createdAt:integer('created_at').notNull(), sessionId:text('session_id'), paymentIntent:text('payment_intent'), paidAt:integer('paid_at'), hidden:integer('hidden').notNull().default(0)
 },t=>[index('idx_bids_status_amount').on(t.status,t.amount),index('idx_bids_player_created').on(t.playerId,t.createdAt)]);
 export const presence=sqliteTable('presence',{
  playerId:text('player_id').primaryKey(), seenAt:integer('seen_at').notNull()

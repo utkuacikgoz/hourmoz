@@ -1,0 +1,1 @@
+ALTER TABLE `sponsor_bids` ADD `test_mode` integer DEFAULT 0 NOT NULL;

@@ -5,7 +5,7 @@ export const sources=new Set(['direct','challenge','x','reddit','instagram','tik
 export async function sponsorship(now=Date.now(),db=null){
  const day=new Date(now).toISOString().slice(0,10);
  const active=config.schedule.find(s=>s.day===day&&/^[a-z0-9-]{1,60}$/.test(s.id)&&typeof s.name==='string'&&s.name.length<=60&&safeLink(s.url));
- return {bookingUrl:'/sponsor.html',sponsor:(db?await paidSponsor(db,now):null)??(active?{id:active.id,name:active.name,url:active.url,day}:null)};
+ return {bookingUrl:'/sponsor.html',sponsor:(db?await paidSponsor(db):null)??(active?{id:active.id,name:active.name,url:active.url,day}:null)};
 }
 function safeLink(value,mail=false){try{const u=new URL(value);return (u.protocol==='https:'||mail&&u.protocol==='mailto:')&&!u.username&&!u.password?value:null}catch{return null}}
 export async function visitMetrics(db,since){

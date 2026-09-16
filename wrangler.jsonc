@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hourmuz",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-09-16",
+  "workers_dev": true,
+  "preview_urls": false,
+  "build": { "command": "npm run build" },
+  "vars": { "AUTH_PROVIDER": "cloudflare-access" },
+  // Set the verified deployed origin, owner email and Access audience in Worker settings.
+  // Add the D1 binding after creating the database in the selected Cloudflare account.
+  "d1_databases": []
+}

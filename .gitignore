@@ -8,3 +8,7 @@ server/assets.generated.mjs
 .env
 .env.*
 !.env.example
+
+.wrangler/
+.dev.vars
+.dev.vars.*
