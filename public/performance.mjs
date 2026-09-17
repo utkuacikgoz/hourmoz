@@ -1,7 +1,8 @@
 // An isolated hitch (a garbage-collection pause, a shader compile, a notification) skips the
 // simulation for that frame instead of advancing it in one jump or interrupting the player. When
 // slow frames follow each other the device is simply slow, so time advances by a capped step and
-// play stays possible. Only a real freeze of more than a second pauses the game.
+// play stays possible. A freeze is reported as stalled; the game only pauses when the tab is
+// hidden or loses focus.
 export function frameTiming(milliseconds, previousHitch = false) {
   const seconds = Math.max(0, milliseconds / 1000);
   const hitch = seconds > 0.25;

@@ -94,6 +94,23 @@ const browser = await chromium.launch({
 try {
   const context = await browser.newContext({viewport: {width: 720, height: 480}});
   const page = await context.newPage();
+  // Diagnostics for the CI log: focus changes and long frames explain any unexpected pause.
+  await page.addInitScript(() => {
+    window.__events = [];
+    window.addEventListener('blur', () => window.__events.push('blur@' + Math.round(performance.now())));
+    window.addEventListener('focus', () => window.__events.push('focus@' + Math.round(performance.now())));
+    document.addEventListener('visibilitychange', () =>
+      window.__events.push(document.visibilityState + '@' + Math.round(performance.now())),
+    );
+    let previous = performance.now();
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = callback =>
+      raf(now => {
+        if (now - previous > 250) window.__events.push('gap' + Math.round(now - previous) + '@' + Math.round(now));
+        previous = now;
+        callback(now);
+      });
+  });
   const errors = [];
   page.on('pageerror', error => errors.push('page error: ' + error.message));
   page.on('console', message => {
@@ -113,10 +130,21 @@ try {
   assert(!(await page.locator('#load-error').isVisible()), 'WebGL initialised');
   assert.match(await page.title(), /game/i);
 
+  await page.bringToFront();
   await page.click('#deploy');
   await page.waitForTimeout(1500);
   assert(await page.locator('#hud').isVisible(), 'HUD visible after PLAY');
-  assert.equal(await page.locator('#pause-screen').isVisible(), false, 'game is not paused right after starting');
+  const diagnostics = async () =>
+    JSON.stringify({
+      events: await page.evaluate(() => window.__events.slice(-12)),
+      focus: await page.evaluate(() => document.hasFocus()),
+      loadError: await page.locator('#load-error').isVisible(),
+    });
+  assert.equal(
+    await page.locator('#pause-screen').isVisible(),
+    false,
+    'game is not paused right after starting ' + (await diagnostics()),
+  );
 
   const started = Date.now();
   let ended = false;
@@ -126,7 +154,11 @@ try {
       ended = true;
       break;
     }
-    assert.equal(await page.locator('#pause-screen').isVisible(), false, 'no automatic pause during play');
+    assert.equal(
+      await page.locator('#pause-screen').isVisible(),
+      false,
+      'no automatic pause during play ' + (await diagnostics()),
+    );
     const side = step++ % 2 ? 'a' : 'd';
     await page.keyboard.down('w');
     await page.keyboard.down(side);

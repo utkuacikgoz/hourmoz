@@ -1182,7 +1182,6 @@ function frame(now) {
     realDt = timing.dt;
   lastHitch = timing.hitch;
   last = now;
-  if (timing.stalled && game.phase === 'play' && !paused) pause(true);
   if (game.phase === 'play' && !paused && graphics.update(realDt)) {
     renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatio));
     renderer.shadowMap.enabled = graphics.level < 2;
