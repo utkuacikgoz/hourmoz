@@ -1,1 +1,30 @@
-{"name":"is-hormuz-open","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","dev":"node --experimental-sqlite scripts/dev.mjs","test":"node tests/engine.test.mjs && node --experimental-sqlite tests/api.test.mjs && node tests/replay-clip.test.mjs && node --experimental-sqlite tests/security.test.mjs && node tests/performance.test.mjs && node --experimental-sqlite tests/analytics.test.mjs && node --experimental-sqlite tests/sponsorship.test.mjs && node tests/identity.test.mjs","db:generate":"drizzle-kit generate","pretest":"npm run build"},"devDependencies":{"drizzle-kit":"0.31.4","drizzle-orm":"0.44.5","esbuild":"0.25.9"}}
+{
+  "name": "is-hormuz-open",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node --experimental-sqlite scripts/dev.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "pretest": "npm run build",
+    "test": "node tests/engine.test.mjs && node tests/golden.test.mjs && node --experimental-sqlite tests/api.test.mjs && node tests/replay-clip.test.mjs && node --experimental-sqlite tests/security.test.mjs && node tests/performance.test.mjs && node --experimental-sqlite tests/analytics.test.mjs && node --experimental-sqlite tests/sponsorship.test.mjs && node tests/identity.test.mjs",
+    "golden:update": "node tests/golden.test.mjs --update",
+    "deploy:check": "wrangler deploy --dry-run --outdir dist/dry-run",
+    "db:generate": "drizzle-kit generate"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "drizzle-kit": "0.31.4",
+    "drizzle-orm": "0.45.2",
+    "esbuild": "0.25.9",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "prettier": "3.9.7",
+    "wrangler": "4.133.0"
+  },
+  "engines": {
+    "node": ">=22.11.0"
+  }
+}

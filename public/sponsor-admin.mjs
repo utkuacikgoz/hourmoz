@@ -1,3 +1,48 @@
-const $=id=>document.getElementById(id);
-async function refresh(){try{const r=await fetch('/api/auction/admin');const data=await r.json();if(!r.ok)throw new Error(data.error);$('message').textContent='';$('bids').replaceChildren(...data.bids.map(b=>{const div=document.createElement('div');div.className='admin-row';const title=document.createElement('h2'),text=document.createElement('p'),link=document.createElement('a'),button=document.createElement('button');title.textContent=b.name+' · $'+b.amount/100;text.textContent=(b.testMode?'TEST · ':'')+b.status+(b.hidden?' · hidden':'');link.href=b.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=b.url;button.textContent=b.hidden?'Show':'Hide';button.onclick=async()=>{button.disabled=true;try{const r=await fetch('/api/auction/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.id,action:b.hidden?'show':'hide'})});if(!r.ok)throw new Error('Could not update sponsor.');await refresh()}catch(e){$('message').textContent=e.message;button.disabled=false}};div.append(title,text,link,document.createElement('br'),button);return div}));if(!data.bids.length)$('message').textContent='No payment attempts yet.'}catch(e){$('message').textContent=e.message}}
-$('refresh').onclick=refresh;void refresh();
+const $ = id => document.getElementById(id);
+async function refresh() {
+  try {
+    const r = await fetch('/api/auction/admin');
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    $('message').textContent = '';
+    $('bids').replaceChildren(
+      ...data.bids.map(b => {
+        const div = document.createElement('div');
+        div.className = 'admin-row';
+        const title = document.createElement('h2'),
+          text = document.createElement('p'),
+          link = document.createElement('a'),
+          button = document.createElement('button');
+        title.textContent = b.name + ' · $' + b.amount / 100;
+        text.textContent = (b.testMode ? 'TEST · ' : '') + b.status + (b.hidden ? ' · hidden' : '');
+        link.href = b.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = b.url;
+        button.textContent = b.hidden ? 'Show' : 'Hide';
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            const r = await fetch('/api/auction/admin', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({id: b.id, action: b.hidden ? 'show' : 'hide'}),
+            });
+            if (!r.ok) throw new Error('Could not update sponsor.');
+            await refresh();
+          } catch (e) {
+            $('message').textContent = e.message;
+            button.disabled = false;
+          }
+        };
+        div.append(title, text, link, document.createElement('br'), button);
+        return div;
+      }),
+    );
+    if (!data.bids.length) $('message').textContent = 'No payment attempts yet.';
+  } catch (e) {
+    $('message').textContent = e.message;
+  }
+}
+$('refresh').onclick = refresh;
+void refresh();

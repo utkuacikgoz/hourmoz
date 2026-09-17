@@ -1,73 +1,496 @@
-import { publicAuction, submitBid, ownerBids, reviewBid, requireOwner, paymentsEnabled, paymentStatus, stripeWebhook, testMode, isOwner } from './auction.mjs';
-import { sponsorship, visitMetrics, createVisit, visitEvent } from './analytics.mjs';
-import { RULES_VERSION } from '../public/rules.mjs';
-import { readJSON, limitRequest, securityHeaders } from './security.mjs';
-import { Crossing, seededRandom } from '../public/engine.mjs';
-import { assets } from './assets.generated.mjs';
-const DAY=86400000, SOURCE='https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx';
-const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",...headers}});
-const db=env=>{if(!env.DB)throw new Error('Database unavailable');return env.DB};
-const validMode=m=>m==='run'||m==='block';
-function playerId(request){return request.headers.get('Cookie')?.match(/(?:^|;\s*)hormuz_player=([a-f0-9-]{36})(?:;|$)/)?.[1]??null}
-function dayString(t=Date.now()){return new Date(t).toISOString().slice(0,10)}
-function dailySeed(day,mode){let h=2166136261;for(const c of day+mode+RULES_VERSION){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
-const body=readJSON;
-const cookieHeader=(player,url)=>({'Set-Cookie':`hormuz_player=${player}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol==='https:'?'; Secure':''}`});
-export function replay(seed,mode,records,total,withTrail=false){if(!Number.isInteger(total)||total<1||total>6302||!Array.isArray(records)||records.length>16000)throw new Error('Invalid replay');const g=new Crossing();g.reset(mode,seed);g.trail=[];let cursor=0,previous=-1;for(const r of records){if(!Array.isArray(r)||!Number.isInteger(r[0])||r[0]<previous||r[0]<0||r[0]>=total)throw new Error('Invalid replay order');previous=r[0]}
- for(let tick=0;tick<total;tick++){while(cursor<records.length&&records[cursor][0]===tick){const[,kind,value]=records[cursor++];if(kind==='b'){if(!g.payCheckpoint())throw new Error('Invalid payoff')}else if(kind==='a'){g.ability()}else if(kind==='i'){if(!Array.isArray(value)||value.length!==6||!value.slice(0,4).every(Number.isFinite)||Math.abs(value[0])>1||Math.abs(value[1])>1||![0,1].includes(value[2])||![0,1].includes(value[3]))throw new Error('Invalid controls');const[x,z,boost,fire,ax,az]=value;if((ax===null)!==(az===null)||ax!==null&&(!Number.isFinite(ax)||!Number.isFinite(az)||Math.abs(ax)>500||Math.abs(az)>500))throw new Error('Invalid aim');g.input={x,z,boost:!!boost,fire:!!fire,aim:ax===null?null:{x:ax,z:az}}}else throw new Error('Unknown replay action')}
- if(g.phase!=='play')throw new Error('Replay continues outside gameplay');g.tick(1/60);if(withTrail&&(tick%6===0||g.phase==='end'))g.trail.push([Number(g.time.toFixed(3)),Number(g.player.x.toFixed(2)),Number(g.player.z.toFixed(2)),g.score]);g.events=[];}
- if(g.phase!=='end')throw new Error('Round is incomplete');return g;
+import {
+  publicAuction,
+  submitBid,
+  ownerBids,
+  reviewBid,
+  requireOwner,
+  paymentsEnabled,
+  paymentStatus,
+  stripeWebhook,
+  testMode,
+  isOwner,
+} from './auction.mjs';
+import {sponsorship, visitMetrics, createVisit, visitEvent} from './analytics.mjs';
+import {RULES_VERSION} from '../public/rules.mjs';
+import {readJSON, limitRequest, securityHeaders} from './security.mjs';
+import {Crossing} from '../public/engine.mjs';
+import {assets} from './assets.generated.mjs';
+const DAY = 86400000,
+  SOURCE = 'https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx';
+const json = (body, status = 200, headers = {}) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+      ...headers,
+    },
+  });
+const db = env => {
+  if (!env.DB) throw new Error('Database unavailable');
+  return env.DB;
+};
+const validMode = m => m === 'run' || m === 'block';
+function playerId(request) {
+  return request.headers.get('Cookie')?.match(/(?:^|;\s*)hormuz_player=([a-f0-9-]{36})(?:;|$)/)?.[1] ?? null;
 }
-export function classifyStatus(html,checkedAt=new Date().toISOString()){
- const text=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&#160;|&nbsp;|&#8239;/g,' ').replace(/\s+/g,' ');
- const start=text.indexOf('Information related to shipping and seafarers');const intro=start>=0?text.slice(start,start+2200):'';
- const disrupted=/stranded on vessels unable to exit the Strait of Hormuz/i.test(intro);
- return {status:disrupted?'disrupted':'unverified',label:disrupted?'Disrupted':'Unverified',detail:disrupted?'IMO reports ships stranded in the region and unable to exit the strait. This does not mean all traffic has stopped.':'The current official page does not provide a clear open/closed status.',source:'IMO',sourceUrl:SOURCE,checkedAt,sourceDate:text.match(/(\d{1,2} [A-Z][a-z]+ 202\d)\s+Seafarers/)?.[1]??null};
+function dayString(t = Date.now()) {
+  return new Date(t).toISOString().slice(0, 10);
 }
-let statusCache=null,statusPending=null;
-const unavailableStatus=()=>({status:'unavailable',label:'Unavailable',detail:'The official source could not be checked. Last-known conditions are not shown as current.',source:'IMO',sourceUrl:SOURCE,checkedAt:null,sourceDate:null});
-async function fetchStatus(){try{const r=await fetch(SOURCE,{headers:{'User-Agent':'IsHormuzOpen/1.0 (official status summary)'},signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('Source unavailable');const value=classifyStatus(await r.text());statusCache={until:Date.now()+600000,value};return value}catch{const value=unavailableStatus();statusCache={until:Date.now()+60000,value};return value}}
+function dailySeed(day, mode) {
+  let h = 2166136261;
+  for (const c of day + mode + RULES_VERSION) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+const body = readJSON;
+const cookieHeader = (player, url) => ({
+  'Set-Cookie': `hormuz_player=${player}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol === 'https:' ? '; Secure' : ''}`,
+});
+export function replay(seed, mode, records, total, withTrail = false) {
+  if (!Number.isInteger(total) || total < 1 || total > 6302 || !Array.isArray(records) || records.length > 16000)
+    throw new Error('Invalid replay');
+  const g = new Crossing();
+  g.reset(mode, seed);
+  g.trail = [];
+  let cursor = 0,
+    previous = -1;
+  for (const r of records) {
+    if (!Array.isArray(r) || !Number.isInteger(r[0]) || r[0] < previous || r[0] < 0 || r[0] >= total)
+      throw new Error('Invalid replay order');
+    previous = r[0];
+  }
+  for (let tick = 0; tick < total; tick++) {
+    while (cursor < records.length && records[cursor][0] === tick) {
+      const [, kind, value] = records[cursor++];
+      if (kind === 'b') {
+        if (!g.payCheckpoint()) throw new Error('Invalid payoff');
+      } else if (kind === 'a') {
+        g.ability();
+      } else if (kind === 'i') {
+        if (
+          !Array.isArray(value) ||
+          value.length !== 6 ||
+          !value.slice(0, 4).every(Number.isFinite) ||
+          Math.abs(value[0]) > 1 ||
+          Math.abs(value[1]) > 1 ||
+          ![0, 1].includes(value[2]) ||
+          ![0, 1].includes(value[3])
+        )
+          throw new Error('Invalid controls');
+        const [x, z, boost, fire, ax, az] = value;
+        if (
+          (ax === null) !== (az === null) ||
+          (ax !== null && (!Number.isFinite(ax) || !Number.isFinite(az) || Math.abs(ax) > 500 || Math.abs(az) > 500))
+        )
+          throw new Error('Invalid aim');
+        g.input = {x, z, boost: !!boost, fire: !!fire, aim: ax === null ? null : {x: ax, z: az}};
+      } else throw new Error('Unknown replay action');
+    }
+    if (g.phase !== 'play') throw new Error('Replay continues outside gameplay');
+    g.tick(1 / 60);
+    if (withTrail && (tick % 6 === 0 || g.phase === 'end'))
+      g.trail.push([Number(g.time.toFixed(3)), Number(g.player.x.toFixed(2)), Number(g.player.z.toFixed(2)), g.score]);
+    g.events = [];
+  }
+  if (g.phase !== 'end') throw new Error('Round is incomplete');
+  return g;
+}
+export function classifyStatus(html, checkedAt = new Date().toISOString()) {
+  const text = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#160;|&nbsp;|&#8239;/g, ' ')
+    .replace(/\s+/g, ' ');
+  const start = text.indexOf('Information related to shipping and seafarers');
+  const intro = start >= 0 ? text.slice(start, start + 2200) : '';
+  const disrupted = /stranded on vessels unable to exit the Strait of Hormuz/i.test(intro);
+  return {
+    status: disrupted ? 'disrupted' : 'unverified',
+    label: disrupted ? 'Disrupted' : 'Unverified',
+    detail: disrupted
+      ? 'IMO reports ships stranded in the region and unable to exit the strait. This does not mean all traffic has stopped.'
+      : 'The current official page does not provide a clear open/closed status.',
+    source: 'IMO',
+    sourceUrl: SOURCE,
+    checkedAt,
+    sourceDate: text.match(/(\d{1,2} [A-Z][a-z]+ 202\d)\s+Seafarers/)?.[1] ?? null,
+  };
+}
+let statusCache = null,
+  statusPending = null;
+const unavailableStatus = () => ({
+  status: 'unavailable',
+  label: 'Unavailable',
+  detail: 'The official source could not be checked. Last-known conditions are not shown as current.',
+  source: 'IMO',
+  sourceUrl: SOURCE,
+  checkedAt: null,
+  sourceDate: null,
+});
+async function fetchStatus() {
+  try {
+    const r = await fetch(SOURCE, {
+      headers: {'User-Agent': 'IsHormuzOpen/1.0 (official status summary)'},
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error('Source unavailable');
+    const value = classifyStatus(await r.text());
+    statusCache = {until: Date.now() + 600000, value};
+    return value;
+  } catch {
+    const value = unavailableStatus();
+    statusCache = {until: Date.now() + 60000, value};
+    return value;
+  }
+}
 // One outbound check per isolate at a time; a failed check is remembered for a minute so bursts cannot hammer the source.
-async function straitStatus(){if(statusCache&&Date.now()<statusCache.until)return statusCache.value;if(!statusPending)statusPending=fetchStatus().finally(()=>{statusPending=null});return statusPending}
-export default {async fetch(request,env,ctx){const url=new URL(request.url);try{if(url.pathname==='/owner-login'&&request.method==='GET'){const target=url.searchParams.get('returnTo')==='/sponsor.html'?'/sponsor.html':'/sponsor-admin.html';return new Response(null,{status:302,headers:{Location:target,'Cache-Control':'no-store'}})}if(url.pathname==='/api/stripe/webhook'&&request.method==='POST')return json(await stripeWebhook(db(env),env,request));if(url.pathname.startsWith('/api/'))await limitRequest(request,db(env),env.RATE_LIMIT_SECRET);
- if(url.pathname==='/api/sponsor'&&request.method==='GET')return json(await sponsorship(Date.now(),db(env)));
- if(url.pathname==='/api/auction'&&request.method==='GET')return json({...await publicAuction(db(env),paymentsEnabled(env)&&(!testMode(env)||await isOwner(request,env,ctx)),testMode(env)&&await isOwner(request,env,ctx)?1:0),testAvailable:paymentsEnabled(env)&&!!testMode(env)});
- if(url.pathname==='/api/auction/admin'&&request.method==='GET'){await requireOwner(request,env,ctx);return json(await ownerBids(db(env)));}
- if(url.pathname==='/api/challenge'&&request.method==='GET'){const id=url.searchParams.get('id');if(!id||id.length>40)return json({error:'Invalid challenge.'},400);const run=await db(env).prepare('SELECT mode, seed, created_at, ghost, rules FROM runs WHERE id = ?').bind(id).first();if(!run?.ghost||run.rules!==RULES_VERSION||run.created_at<Date.now()-30*DAY)return json({error:'This challenge has ended. Play today’s course.'},404);return json(JSON.parse(run.ghost));}
- if(url.pathname==='/api/metrics'&&request.method==='GET'){
- const since=Date.now()-30*DAY;
- const totals=await db(env).prepare('SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(card),0) AS cards, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?').bind(since).first();
- const returning=await db(env).prepare('SELECT COUNT(*) AS count FROM (SELECT player_id FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY player_id HAVING COUNT(DISTINCT CAST(created_at / 86400000 AS INTEGER)) > 1)').bind(since).first();
- const daily=await db(env).prepare("SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, SUM(completed) AS completed, SUM(shared) AS shared FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY day ORDER BY day DESC LIMIT 30").bind(since).all();
- const online=await db(env).prepare('SELECT COUNT(*) AS count FROM presence WHERE seen_at >= ?').bind(Date.now()-90000).first();
- const modes=await db(env).prepare('SELECT mode, COUNT(*) AS starts, SUM(completed) AS completed FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY mode').bind(since).all();
- return json({...totals,online:online.count,modes:modes.results,...await visitMetrics(db(env),since),replays:totals.starts-totals.players,returningPlayers:returning.count,days:daily.results??[],updatedAt:new Date().toISOString()});
- }
- if(url.pathname==='/api/status'&&request.method==='GET')return json(await straitStatus());
- if(url.pathname==='/api/leaderboard'&&request.method==='GET'){const mode=url.searchParams.get('mode');if(!validMode(mode))return json({error:'Choose a mission.'},400);const start=Math.floor(Date.now()/DAY)*DAY;const rows=await db(env).prepare('SELECT name, score, duration, won FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? ORDER BY score DESC, created_at ASC LIMIT 10').bind(mode,RULES_VERSION,start,start+DAY).all();return json({day:dayString(),mode,entries:rows.results??[]})}
- if(url.pathname.startsWith('/api/')&&request.method==='POST'){
-  const origin=request.headers.get('Origin');if(origin&&origin!==url.origin||request.headers.get('Sec-Fetch-Site')==='cross-site')return json({error:'Invalid request origin.'},403);
-  if(!request.headers.get('Content-Type')?.includes('application/json'))return json({error:'JSON required.'},415);
-  if(url.pathname==='/api/auction/bids'){if(testMode(env))await requireOwner(request,env,ctx);const player=playerId(request)??crypto.randomUUID();return json(await submitBid(db(env),env,await readJSON(request,8192),player),201,cookieHeader(player,url));}
-  if(url.pathname==='/api/auction/payment'){if(testMode(env))await requireOwner(request,env,ctx);const data=await readJSON(request,2048);if(typeof data.id!=='string')return json({error:'Invalid payment.'},400);return json(await paymentStatus(db(env),env,data.id,playerId(request)));}
-  if(url.pathname==='/api/presence'){const data=await readJSON(request,2048),player=playerId(request);if(!player||typeof data.visitId!=='string')return json({error:'Visit required.'},400);const visit=await db(env).prepare('SELECT id FROM visits WHERE id = ? AND player_id = ? AND created_at >= ?').bind(data.visitId,player,Date.now()-DAY).first();if(!visit)return json({error:'Visit not found.'},404);await db(env).batch([db(env).prepare('INSERT INTO presence (player_id, seen_at) VALUES (?, ?) ON CONFLICT(player_id) DO UPDATE SET seen_at = excluded.seen_at').bind(player,Date.now()),db(env).prepare('DELETE FROM presence WHERE seen_at < ?').bind(Date.now()-300000)]);return json({ok:true});}
-  if(url.pathname==='/api/auction/admin'){await requireOwner(request,env,ctx);return json(await reviewBid(db(env),await readJSON(request,8192)));}
-  if(url.pathname==='/api/visits'){const data=await body(request),player=playerId(request)??crypto.randomUUID();const result=await createVisit(db(env),data,player);return json(result,result.status??201,result.error?{}:cookieHeader(player,url));}
-  if(url.pathname==='/api/visit-events'){const result=await visitEvent(db(env),await body(request),playerId(request));return json(result,result.status??200);}
-  if(url.pathname==='/api/challenge'){const data=await body(request),player=playerId(request);if(!player||typeof data.runId!=='string')return json({error:'Start a run first.'},400);const run=await db(env).prepare('SELECT * FROM runs WHERE id = ? AND player_id = ?').bind(data.runId,player).first();if(!run||run.rules!==RULES_VERSION||dayString(run.created_at)!==dayString())return json({error:'This daily challenge has ended.'},404);if(run.ghost)return json({id:run.id});let verified;try{verified=replay(run.seed,run.mode,data.records,data.ticks,true)}catch{return json({error:'Run could not be verified.'},400)}if(verified.time*1000>Date.now()-run.created_at+2500)return json({error:'Run finished too quickly.'},400);const ghost={rules:RULES_VERSION,mode:run.mode,seed:run.seed,day:dayString(run.created_at),score:verified.score,trail:verified.trail};await db(env).prepare('UPDATE runs SET ghost = ? WHERE id = ? AND ghost IS NULL').bind(JSON.stringify(ghost),run.id).run();return json({id:run.id});}
-  if(url.pathname==='/api/events'){
-   const data=await body(request),player=playerId(request);const columns={complete:'completed',share:'shared',card:'card'};
-   if(!player||typeof data.runId!=='string'||!Object.hasOwn(columns,data.event))return json({error:'Invalid event.'},400);
-   const run=await db(env).prepare('SELECT id FROM runs WHERE id = ? AND player_id = ? AND tracked = 1 AND created_at >= ?').bind(data.runId,player,Date.now()-DAY).first();
-   if(!run)return json({error:'Run not found.'},404);
-   await db(env).prepare('UPDATE runs SET '+columns[data.event]+' = 1 WHERE id = ? AND player_id = ?').bind(run.id,player).run();return json({ok:true});
-  }
-  if(url.pathname==='/api/runs'){const data=await body(request);if(data.rules!==RULES_VERSION)return json({error:'Game updated. Refresh to play.'},409);if(!validMode(data.mode))return json({error:'Choose a mission.'},400);const player=playerId(request)??crypto.randomUUID(),now=Date.now();const recent=await db(env).prepare('SELECT COUNT(*) AS count FROM runs WHERE player_id = ? AND created_at > ?').bind(player,now-60000).first();if(recent.count>=8)return json({error:'Too many restarts. Try again in a minute.'},429);const visit=typeof data.visitId==='string'?await db(env).prepare('SELECT id FROM visits WHERE id = ? AND player_id = ? AND created_at >= ?').bind(data.visitId,player,now-DAY).first():null;const id=crypto.randomUUID();let seed=dailySeed(dayString(now),data.mode),ranked=1,referred=0;if(typeof data.challenge==='string'&&data.challenge.length<=40){const source=await db(env).prepare('SELECT seed, mode, rules, ranked, ghost, created_at FROM runs WHERE id = ?').bind(data.challenge).first();if(source?.ghost&&source.rules===RULES_VERSION&&source.mode===data.mode&&source.created_at>=now-30*DAY){seed=source.seed;ranked=source.ranked&&dayString(source.created_at)===dayString(now)&&source.seed===dailySeed(dayString(now),data.mode)?1:0;referred=1;}}await db(env).batch([db(env).prepare('DELETE FROM runs WHERE created_at < ?').bind(now-30*DAY),db(env).prepare('INSERT INTO runs (id, player_id, mode, seed, created_at, submitted, tracked, rules, ranked, referred, visit_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)').bind(id,player,data.mode,seed,now,data.analytics===false?0:1,RULES_VERSION,ranked,referred,visit?.id??null)]);return json({id,seed,ranked:!!ranked,rules:RULES_VERSION,day:dayString(now)},201,{'Set-Cookie':`hormuz_player=${player}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol==='https:'?'; Secure':''}`})}
-  if(url.pathname==='/api/scores'){const data=await body(request),player=playerId(request);const name=typeof data.name==='string'?data.name.normalize('NFKC').trim().replace(/\s+/g,' '):'';if(!/^[\p{L}\p{N} _.-]{2,18}$/u.test(name))return json({error:'Use 2–18 letters, numbers, spaces, dots, dashes or underscores.'},400);if(!player||typeof data.runId!=='string')return json({error:'Start a new ranked run.'},400);const run=await db(env).prepare('SELECT * FROM runs WHERE id = ? AND player_id = ?').bind(data.runId,player).first();if(!run)return json({error:'Run expired. Start a new run.'},404);if(!run.ranked)return json({error:'Practice runs do not enter the daily leaderboard.'},400);if(run.rules!==RULES_VERSION)return json({error:'Game updated. Start a new run.'},409);if(run.submitted)return json({saved:true,alreadySaved:true});if(Date.now()-run.created_at>DAY)return json({error:'This run has expired.'},400);
-   let verified;try{verified=replay(run.seed,run.mode,data.records,data.ticks)}catch{return json({error:'The run could not be verified. Your next run can be submitted.'},400)}if(verified.time*1000>Date.now()-run.created_at+2500)return json({error:'This run finished faster than the game allows.'},400);
-   await db(env).batch([db(env).prepare('INSERT INTO scores (player_id, mode, name, score, duration, won, created_at, rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(player_id, mode) DO UPDATE SET rules = excluded.rules, name = excluded.name, score = excluded.score, duration = excluded.duration, won = excluded.won, created_at = excluded.created_at WHERE scores.rules != excluded.rules OR CAST(excluded.created_at / 86400000 AS INTEGER) > CAST(scores.created_at / 86400000 AS INTEGER) OR (CAST(excluded.created_at / 86400000 AS INTEGER) = CAST(scores.created_at / 86400000 AS INTEGER) AND excluded.score >= scores.score)').bind(player,run.mode,name,verified.score,Math.floor(verified.time),verified.win?1:0,run.created_at,RULES_VERSION),db(env).prepare('UPDATE runs SET submitted = 1 WHERE id = ? AND player_id = ?').bind(run.id,player)]);const dayStart=Math.floor(run.created_at/DAY)*DAY;const result=await db(env).prepare('SELECT COUNT(*) + 1 AS rank FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? AND score > ?').bind(run.mode,RULES_VERSION,dayStart,dayStart+DAY,verified.score).first();return json({saved:true,score:verified.score,rank:result.rank,day:dayString(run.created_at)})
-  }
- }
- if(url.pathname.startsWith('/api/'))return json({error:'Not found.'},404);
- if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});const file=assets[url.pathname==='/'?'/index.html':url.pathname];if(!file)return new Response('Not found',{status:404});return new Response(request.method==='HEAD'?null:file.encoding==='base64'?Uint8Array.from(atob(file.body),c=>c.charCodeAt(0)):file.body,{headers:{'Content-Type':file.type,'Cache-Control':'public, max-age=60',...securityHeaders(url)}});
- }catch(error){if(error.status)return json({error:error.message},error.status,error.status===429?{'Retry-After':'60'}:{});console.error('Game request failed:',error.message);return json({error:'Leaderboard unavailable. Please try again.'},503)}}};
+async function straitStatus() {
+  if (statusCache && Date.now() < statusCache.until) return statusCache.value;
+  if (!statusPending)
+    statusPending = fetchStatus().finally(() => {
+      statusPending = null;
+    });
+  return statusPending;
+}
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    try {
+      if (url.pathname === '/owner-login' && request.method === 'GET') {
+        const target = url.searchParams.get('returnTo') === '/sponsor.html' ? '/sponsor.html' : '/sponsor-admin.html';
+        return new Response(null, {status: 302, headers: {Location: target, 'Cache-Control': 'no-store'}});
+      }
+      if (url.pathname === '/api/stripe/webhook' && request.method === 'POST')
+        return json(await stripeWebhook(db(env), env, request));
+      if (url.pathname.startsWith('/api/')) await limitRequest(request, db(env), env.RATE_LIMIT_SECRET);
+      if (url.pathname === '/api/sponsor' && request.method === 'GET')
+        return json(await sponsorship(Date.now(), db(env)));
+      if (url.pathname === '/api/auction' && request.method === 'GET')
+        return json({
+          ...(await publicAuction(
+            db(env),
+            paymentsEnabled(env) && (!testMode(env) || (await isOwner(request, env, ctx))),
+            testMode(env) && (await isOwner(request, env, ctx)) ? 1 : 0,
+          )),
+          testAvailable: paymentsEnabled(env) && !!testMode(env),
+        });
+      if (url.pathname === '/api/auction/admin' && request.method === 'GET') {
+        await requireOwner(request, env, ctx);
+        return json(await ownerBids(db(env)));
+      }
+      if (url.pathname === '/api/challenge' && request.method === 'GET') {
+        const id = url.searchParams.get('id');
+        if (!id || id.length > 40) return json({error: 'Invalid challenge.'}, 400);
+        const run = await db(env)
+          .prepare('SELECT mode, seed, created_at, ghost, rules FROM runs WHERE id = ?')
+          .bind(id)
+          .first();
+        if (!run?.ghost || run.rules !== RULES_VERSION || run.created_at < Date.now() - 30 * DAY)
+          return json({error: 'This challenge has ended. Play today’s course.'}, 404);
+        return json(JSON.parse(run.ghost));
+      }
+      if (url.pathname === '/api/metrics' && request.method === 'GET') {
+        const since = Date.now() - 30 * DAY;
+        const totals = await db(env)
+          .prepare(
+            'SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(card),0) AS cards, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?',
+          )
+          .bind(since)
+          .first();
+        const returning = await db(env)
+          .prepare(
+            'SELECT COUNT(*) AS count FROM (SELECT player_id FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY player_id HAVING COUNT(DISTINCT CAST(created_at / 86400000 AS INTEGER)) > 1)',
+          )
+          .bind(since)
+          .first();
+        const daily = await db(env)
+          .prepare(
+            "SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, SUM(completed) AS completed, SUM(shared) AS shared FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY day ORDER BY day DESC LIMIT 30",
+          )
+          .bind(since)
+          .all();
+        const online = await db(env)
+          .prepare('SELECT COUNT(*) AS count FROM presence WHERE seen_at >= ?')
+          .bind(Date.now() - 90000)
+          .first();
+        const modes = await db(env)
+          .prepare(
+            'SELECT mode, COUNT(*) AS starts, SUM(completed) AS completed FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY mode',
+          )
+          .bind(since)
+          .all();
+        return json({
+          ...totals,
+          online: online.count,
+          modes: modes.results,
+          ...(await visitMetrics(db(env), since)),
+          replays: totals.starts - totals.players,
+          returningPlayers: returning.count,
+          days: daily.results ?? [],
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      if (url.pathname === '/api/status' && request.method === 'GET') return json(await straitStatus());
+      if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
+        const mode = url.searchParams.get('mode');
+        if (!validMode(mode)) return json({error: 'Choose a mission.'}, 400);
+        const start = Math.floor(Date.now() / DAY) * DAY;
+        const rows = await db(env)
+          .prepare(
+            'SELECT name, score, duration, won FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? ORDER BY score DESC, created_at ASC LIMIT 10',
+          )
+          .bind(mode, RULES_VERSION, start, start + DAY)
+          .all();
+        return json({day: dayString(), mode, entries: rows.results ?? []});
+      }
+      if (url.pathname.startsWith('/api/') && request.method === 'POST') {
+        const origin = request.headers.get('Origin');
+        if ((origin && origin !== url.origin) || request.headers.get('Sec-Fetch-Site') === 'cross-site')
+          return json({error: 'Invalid request origin.'}, 403);
+        if (!request.headers.get('Content-Type')?.includes('application/json'))
+          return json({error: 'JSON required.'}, 415);
+        if (url.pathname === '/api/auction/bids') {
+          if (testMode(env)) await requireOwner(request, env, ctx);
+          const player = playerId(request) ?? crypto.randomUUID();
+          return json(
+            await submitBid(db(env), env, await readJSON(request, 8192), player),
+            201,
+            cookieHeader(player, url),
+          );
+        }
+        if (url.pathname === '/api/auction/payment') {
+          if (testMode(env)) await requireOwner(request, env, ctx);
+          const data = await readJSON(request, 2048);
+          if (typeof data.id !== 'string') return json({error: 'Invalid payment.'}, 400);
+          return json(await paymentStatus(db(env), env, data.id, playerId(request)));
+        }
+        if (url.pathname === '/api/presence') {
+          const data = await readJSON(request, 2048),
+            player = playerId(request);
+          if (!player || typeof data.visitId !== 'string') return json({error: 'Visit required.'}, 400);
+          const visit = await db(env)
+            .prepare('SELECT id FROM visits WHERE id = ? AND player_id = ? AND created_at >= ?')
+            .bind(data.visitId, player, Date.now() - DAY)
+            .first();
+          if (!visit) return json({error: 'Visit not found.'}, 404);
+          await db(env).batch([
+            db(env)
+              .prepare(
+                'INSERT INTO presence (player_id, seen_at) VALUES (?, ?) ON CONFLICT(player_id) DO UPDATE SET seen_at = excluded.seen_at',
+              )
+              .bind(player, Date.now()),
+            db(env)
+              .prepare('DELETE FROM presence WHERE seen_at < ?')
+              .bind(Date.now() - 300000),
+          ]);
+          return json({ok: true});
+        }
+        if (url.pathname === '/api/auction/admin') {
+          await requireOwner(request, env, ctx);
+          return json(await reviewBid(db(env), await readJSON(request, 8192)));
+        }
+        if (url.pathname === '/api/visits') {
+          const data = await body(request),
+            player = playerId(request) ?? crypto.randomUUID();
+          const result = await createVisit(db(env), data, player);
+          return json(result, result.status ?? 201, result.error ? {} : cookieHeader(player, url));
+        }
+        if (url.pathname === '/api/visit-events') {
+          const result = await visitEvent(db(env), await body(request), playerId(request));
+          return json(result, result.status ?? 200);
+        }
+        if (url.pathname === '/api/challenge') {
+          const data = await body(request),
+            player = playerId(request);
+          if (!player || typeof data.runId !== 'string') return json({error: 'Start a run first.'}, 400);
+          const run = await db(env)
+            .prepare('SELECT * FROM runs WHERE id = ? AND player_id = ?')
+            .bind(data.runId, player)
+            .first();
+          if (!run || run.rules !== RULES_VERSION || dayString(run.created_at) !== dayString())
+            return json({error: 'This daily challenge has ended.'}, 404);
+          if (run.ghost) return json({id: run.id});
+          let verified;
+          try {
+            verified = replay(run.seed, run.mode, data.records, data.ticks, true);
+          } catch {
+            return json({error: 'Run could not be verified.'}, 400);
+          }
+          if (verified.time * 1000 > Date.now() - run.created_at + 2500)
+            return json({error: 'Run finished too quickly.'}, 400);
+          const ghost = {
+            rules: RULES_VERSION,
+            mode: run.mode,
+            seed: run.seed,
+            day: dayString(run.created_at),
+            score: verified.score,
+            trail: verified.trail,
+          };
+          await db(env)
+            .prepare('UPDATE runs SET ghost = ? WHERE id = ? AND ghost IS NULL')
+            .bind(JSON.stringify(ghost), run.id)
+            .run();
+          return json({id: run.id});
+        }
+        if (url.pathname === '/api/events') {
+          const data = await body(request),
+            player = playerId(request);
+          const columns = {complete: 'completed', share: 'shared', card: 'card'};
+          if (!player || typeof data.runId !== 'string' || !Object.hasOwn(columns, data.event))
+            return json({error: 'Invalid event.'}, 400);
+          const run = await db(env)
+            .prepare('SELECT id FROM runs WHERE id = ? AND player_id = ? AND tracked = 1 AND created_at >= ?')
+            .bind(data.runId, player, Date.now() - DAY)
+            .first();
+          if (!run) return json({error: 'Run not found.'}, 404);
+          await db(env)
+            .prepare('UPDATE runs SET ' + columns[data.event] + ' = 1 WHERE id = ? AND player_id = ?')
+            .bind(run.id, player)
+            .run();
+          return json({ok: true});
+        }
+        if (url.pathname === '/api/runs') {
+          const data = await body(request);
+          if (data.rules !== RULES_VERSION) return json({error: 'Game updated. Refresh to play.'}, 409);
+          if (!validMode(data.mode)) return json({error: 'Choose a mission.'}, 400);
+          const player = playerId(request) ?? crypto.randomUUID(),
+            now = Date.now();
+          const recent = await db(env)
+            .prepare('SELECT COUNT(*) AS count FROM runs WHERE player_id = ? AND created_at > ?')
+            .bind(player, now - 60000)
+            .first();
+          if (recent.count >= 8) return json({error: 'Too many restarts. Try again in a minute.'}, 429);
+          const visit =
+            typeof data.visitId === 'string'
+              ? await db(env)
+                  .prepare('SELECT id FROM visits WHERE id = ? AND player_id = ? AND created_at >= ?')
+                  .bind(data.visitId, player, now - DAY)
+                  .first()
+              : null;
+          const id = crypto.randomUUID();
+          let seed = dailySeed(dayString(now), data.mode),
+            ranked = 1,
+            referred = 0;
+          if (typeof data.challenge === 'string' && data.challenge.length <= 40) {
+            const source = await db(env)
+              .prepare('SELECT seed, mode, rules, ranked, ghost, created_at FROM runs WHERE id = ?')
+              .bind(data.challenge)
+              .first();
+            if (
+              source?.ghost &&
+              source.rules === RULES_VERSION &&
+              source.mode === data.mode &&
+              source.created_at >= now - 30 * DAY
+            ) {
+              seed = source.seed;
+              ranked =
+                source.ranked &&
+                dayString(source.created_at) === dayString(now) &&
+                source.seed === dailySeed(dayString(now), data.mode)
+                  ? 1
+                  : 0;
+              referred = 1;
+            }
+          }
+          await db(env).batch([
+            db(env)
+              .prepare('DELETE FROM runs WHERE created_at < ?')
+              .bind(now - 30 * DAY),
+            db(env)
+              .prepare(
+                'INSERT INTO runs (id, player_id, mode, seed, created_at, submitted, tracked, rules, ranked, referred, visit_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+              )
+              .bind(
+                id,
+                player,
+                data.mode,
+                seed,
+                now,
+                data.analytics === false ? 0 : 1,
+                RULES_VERSION,
+                ranked,
+                referred,
+                visit?.id ?? null,
+              ),
+          ]);
+          return json({id, seed, ranked: !!ranked, rules: RULES_VERSION, day: dayString(now)}, 201, {
+            'Set-Cookie': `hormuz_player=${player}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol === 'https:' ? '; Secure' : ''}`,
+          });
+        }
+        if (url.pathname === '/api/scores') {
+          const data = await body(request),
+            player = playerId(request);
+          const name = typeof data.name === 'string' ? data.name.normalize('NFKC').trim().replace(/\s+/g, ' ') : '';
+          if (!/^[\p{L}\p{N} _.-]{2,18}$/u.test(name))
+            return json({error: 'Use 2–18 letters, numbers, spaces, dots, dashes or underscores.'}, 400);
+          if (!player || typeof data.runId !== 'string') return json({error: 'Start a new ranked run.'}, 400);
+          const run = await db(env)
+            .prepare('SELECT * FROM runs WHERE id = ? AND player_id = ?')
+            .bind(data.runId, player)
+            .first();
+          if (!run) return json({error: 'Run expired. Start a new run.'}, 404);
+          if (!run.ranked) return json({error: 'Practice runs do not enter the daily leaderboard.'}, 400);
+          if (run.rules !== RULES_VERSION) return json({error: 'Game updated. Start a new run.'}, 409);
+          if (run.submitted) return json({saved: true, alreadySaved: true});
+          if (Date.now() - run.created_at > DAY) return json({error: 'This run has expired.'}, 400);
+          let verified;
+          try {
+            verified = replay(run.seed, run.mode, data.records, data.ticks);
+          } catch {
+            return json({error: 'The run could not be verified. Your next run can be submitted.'}, 400);
+          }
+          if (verified.time * 1000 > Date.now() - run.created_at + 2500)
+            return json({error: 'This run finished faster than the game allows.'}, 400);
+          await db(env).batch([
+            db(env)
+              .prepare(
+                'INSERT INTO scores (player_id, mode, name, score, duration, won, created_at, rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(player_id, mode) DO UPDATE SET rules = excluded.rules, name = excluded.name, score = excluded.score, duration = excluded.duration, won = excluded.won, created_at = excluded.created_at WHERE scores.rules != excluded.rules OR CAST(excluded.created_at / 86400000 AS INTEGER) > CAST(scores.created_at / 86400000 AS INTEGER) OR (CAST(excluded.created_at / 86400000 AS INTEGER) = CAST(scores.created_at / 86400000 AS INTEGER) AND excluded.score >= scores.score)',
+              )
+              .bind(
+                player,
+                run.mode,
+                name,
+                verified.score,
+                Math.floor(verified.time),
+                verified.win ? 1 : 0,
+                run.created_at,
+                RULES_VERSION,
+              ),
+            db(env).prepare('UPDATE runs SET submitted = 1 WHERE id = ? AND player_id = ?').bind(run.id, player),
+          ]);
+          const dayStart = Math.floor(run.created_at / DAY) * DAY;
+          const result = await db(env)
+            .prepare(
+              'SELECT COUNT(*) + 1 AS rank FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? AND score > ?',
+            )
+            .bind(run.mode, RULES_VERSION, dayStart, dayStart + DAY, verified.score)
+            .first();
+          return json({saved: true, score: verified.score, rank: result.rank, day: dayString(run.created_at)});
+        }
+      }
+      if (url.pathname.startsWith('/api/')) return json({error: 'Not found.'}, 404);
+      if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', {status: 405});
+      const file = assets[url.pathname === '/' ? '/index.html' : url.pathname];
+      if (!file) return new Response('Not found', {status: 404});
+      return new Response(
+        request.method === 'HEAD'
+          ? null
+          : file.encoding === 'base64'
+            ? Uint8Array.from(atob(file.body), c => c.charCodeAt(0))
+            : file.body,
+        {headers: {'Content-Type': file.type, 'Cache-Control': 'public, max-age=60', ...securityHeaders(url)}},
+      );
+    } catch (error) {
+      if (error.status)
+        return json({error: error.message}, error.status, error.status === 429 ? {'Retry-After': '60'} : {});
+      console.error('Game request failed:', error.message);
+      return json({error: 'Leaderboard unavailable. Please try again.'}, 503);
+    }
+  },
+};

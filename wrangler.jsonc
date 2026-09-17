@@ -5,8 +5,8 @@
   "compatibility_date": "2026-09-16",
   "workers_dev": true,
   "preview_urls": false,
-  "build": { "command": "npm run build" },
+  "build": {"command": "npm run build"},
   // Set APP_ORIGIN, AUCTION_OWNER_EMAIL and CF_ACCESS_AUD as variables and the Stripe keys as secrets in Worker settings.
   // Add the D1 binding after creating the database in the selected Cloudflare account.
-  "d1_databases": []
+  "d1_databases": [],
 }

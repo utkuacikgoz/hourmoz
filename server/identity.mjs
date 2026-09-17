@@ -6,7 +6,13 @@ export async function isOwner(request, env, ctx) {
   const access = ctx?.access;
   if (!access || access.aud !== env.CF_ACCESS_AUD) return false;
   let email;
-  try { email = (await access.getIdentity())?.email; } catch { return false; }
+  try {
+    email = (await access.getIdentity())?.email;
+  } catch {
+    return false;
+  }
   return typeof email === 'string' && email.toLowerCase() === env.AUCTION_OWNER_EMAIL.toLowerCase();
 }
-export async function requireOwner(request, env, ctx) { if (!await isOwner(request, env, ctx)) throw new RequestError('Owner sign-in required.', 403); }
+export async function requireOwner(request, env, ctx) {
+  if (!(await isOwner(request, env, ctx))) throw new RequestError('Owner sign-in required.', 403);
+}

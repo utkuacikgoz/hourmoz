@@ -1,0 +1,54 @@
+{
+  "rulesVersion": "2026-09-15.2",
+  "engineHash": "6aa7cc03df214239a61b68f6a52ba84067fb59d32295a873af11d0e6dd1acfe2",
+  "runs": {
+    "run:20260917": {
+      "ticks": 3558,
+      "time": 59.3,
+      "score": 1160,
+      "hull": 0,
+      "win": false,
+      "delivered": 1,
+      "stopped": 0,
+      "escaped": 0,
+      "nearMisses": 2,
+      "actions": 5
+    },
+    "block:20260917": {
+      "ticks": 4459,
+      "time": 74.3167,
+      "score": 15500,
+      "hull": 0,
+      "win": false,
+      "delivered": 0,
+      "stopped": 20,
+      "escaped": 4,
+      "nearMisses": 0,
+      "actions": 0
+    },
+    "run:4242": {
+      "ticks": 3904,
+      "time": 65.0667,
+      "score": 1425,
+      "hull": 0,
+      "win": false,
+      "delivered": 1,
+      "stopped": 0,
+      "escaped": 0,
+      "nearMisses": 3,
+      "actions": 5
+    },
+    "block:4242": {
+      "ticks": 4240,
+      "time": 70.6667,
+      "score": 12500,
+      "hull": 0,
+      "win": false,
+      "delivered": 0,
+      "stopped": 18,
+      "escaped": 5,
+      "nearMisses": 0,
+      "actions": 0
+    }
+  }
+}
