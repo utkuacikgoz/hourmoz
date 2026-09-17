@@ -59,8 +59,11 @@ function style(id, prop, value) {
 }
 // The WebGL fallback button is wired here so the page needs no inline script.
 $('reload').onclick = () => location.reload();
+// ?graphics=low starts at the lowest quality level for weak devices and automated checks.
 const coarsePointer = matchMedia('(pointer: coarse)').matches,
-  graphics = new GraphicsBudget(coarsePointer ? 1 : 0),
+  graphics = new GraphicsBudget(
+    new URLSearchParams(location.search).get('graphics') === 'low' ? 3 : coarsePointer ? 1 : 0,
+  ),
   reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#143e4b');

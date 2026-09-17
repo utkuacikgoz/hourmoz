@@ -36,7 +36,7 @@ The IMO status endpoint checks the current official Middle East page and caches 
 - Historical incident: [UK government report on Stena Impero, July 2019](https://www.gov.uk/government/news/iran-tanker-seizure-uk-government-response).
 - Current status: [IMO Middle East report](https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx).
 
-Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required.
+Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required. Adding `?graphics=low` to the game URL starts at the lowest quality level (no shadows, reduced resolution) for weak devices; the game also lowers quality on its own when frames stay slow.
 
 ## Release checks
 

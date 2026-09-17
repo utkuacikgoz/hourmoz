@@ -118,7 +118,8 @@ try {
     if (message.type() === 'error' && !/ERR_CERT|fonts\.g/.test(message.text())) errors.push(message.text());
   });
 
-  const landing = await page.goto(origin + '/', {waitUntil: 'load'});
+  // Low graphics keeps software rendering on a CI runner fast enough to play a whole round.
+  const landing = await page.goto(origin + '/?graphics=low', {waitUntil: 'load'});
   assert.equal(landing.status(), 200);
   assert.match(
     landing.headers()['content-security-policy'] ?? '',
@@ -149,7 +150,7 @@ try {
   const started = Date.now();
   let ended = false;
   let step = 0;
-  while (Date.now() - started < 170000) {
+  while (Date.now() - started < 300000) {
     if (await page.locator('#end-screen').isVisible()) {
       ended = true;
       break;
