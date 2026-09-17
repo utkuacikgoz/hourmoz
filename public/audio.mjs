@@ -63,7 +63,7 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(this.enabled ? 0.65 : 0, this.ctx.currentTime, 0.08);
     const button = document.getElementById('sound');
     button.textContent = this.enabled ? 'SOUND ON' : 'SOUND OFF';
-    button.setAttribute('aria-label', this.enabled ? 'Mute sound' : 'Enable sound');
+    button.setAttribute('aria-pressed', String(this.enabled));
   }
   sub(frequency, duration, gain, end = frequency) {
     if (!this.enabled) return;

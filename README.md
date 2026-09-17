@@ -1,6 +1,6 @@
 # Is Hormuz Open?
 
-A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ads.
+A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ad networks: the only placement is a single sponsor link sold openly on the sponsor page.
 
 ## Run
 

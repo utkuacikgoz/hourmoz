@@ -215,7 +215,7 @@ h1 > span {
   gap: 16px;
   justify-content: center;
   margin-top: 17px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.7px;
   color: #9ab2b3;
 }
@@ -229,7 +229,7 @@ h1 > span {
 }
 kbd {
   font: inherit;
-  font-size: 9px;
+  font-size: 10px;
   border: 1px solid #66898266;
   padding: 3px 4px;
   border-radius: 2px;
@@ -296,7 +296,7 @@ kbd {
   width: 0;
 }
 .mission #objective {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.2px;
   color: var(--gold);
 }
@@ -399,7 +399,7 @@ kbd {
   transition: width 0.16s;
 }
 .boost-label span {
-  font-size: 9px;
+  font-size: 10px;
 }
 .boost-track {
   height: 2px;
@@ -450,7 +450,7 @@ kbd {
 }
 .ability > span {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.5px;
   color: #92b5ab;
   margin-top: 8px;
@@ -629,7 +629,7 @@ kbd {
     gap: 5px;
   }
   .utility button {
-    font-size: 9px;
+    font-size: 10px;
   }
   .menu {
     padding: 95px 26px 75px;
@@ -640,7 +640,7 @@ kbd {
     font-size: 100px;
   }
   .menu-title .overline {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 2px;
   }
   .tagline {
@@ -659,17 +659,17 @@ kbd {
     font-size: 24px;
   }
   .mode > span {
-    font-size: 9px;
+    font-size: 10px;
   }
   .brief-controls {
-    font-size: 8px;
+    font-size: 10px;
     gap: 10px;
   }
   .menu-bottom {
     left: 26px;
     right: 26px;
     bottom: 22px;
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1px;
   }
   .mission {
@@ -681,10 +681,10 @@ kbd {
     font-size: 40px;
   }
   .mission > span {
-    font-size: 9px;
+    font-size: 10px;
   }
   .mission #objective {
-    font-size: 8px;
+    font-size: 10px;
   }
   .scoreboard {
     right: 20px;
@@ -694,7 +694,7 @@ kbd {
     font-size: 40px;
   }
   .scoreboard > span {
-    font-size: 9px;
+    font-size: 10px;
   }
   .scoreboard > div {
     font-size: 12px;
@@ -716,7 +716,7 @@ kbd {
     padding: 10px;
   }
   .ability button > span {
-    font-size: 8px;
+    font-size: 10px;
   }
   .ability strong {
     font-size: 10px;
@@ -1099,7 +1099,7 @@ kbd {
 }
 #incident-note > span {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.1px;
   color: #738f93;
 }
@@ -1164,7 +1164,7 @@ body.in-game #incident-note {
     gap: 4px;
   }
   .utility button {
-    font-size: 8px;
+    font-size: 10px;
     padding: 0 6px;
   }
   header {
@@ -1175,15 +1175,15 @@ body.in-game #incident-note {
     position: absolute;
     left: 26px;
     top: 64px;
-    font-size: 9px;
+    font-size: 10px;
     padding: 7px 9px;
     gap: 5px;
   }
   .world-status b {
-    font-size: 9px;
+    font-size: 10px;
   }
   .status-prefix {
-    font-size: 8px;
+    font-size: 10px;
   }
   .world-status > span {
     display: inline;
@@ -1202,13 +1202,13 @@ body.in-game #incident-note {
   }
   .menu-bottom {
     bottom: 18px;
-    font-size: 8px;
+    font-size: 10px;
   }
   #incident-note {
     right: 26px;
     bottom: 45px;
     max-width: 300px;
-    font-size: 9px;
+    font-size: 10px;
   }
   #incident-note > span {
     display: none;
@@ -1232,10 +1232,10 @@ body.in-game #incident-note {
     letter-spacing: 1.3px;
   }
   .geo-label.water {
-    font-size: 9px;
+    font-size: 10px;
   }
   .geo-label.city {
-    font-size: 9px;
+    font-size: 10px;
   }
   #leaderboard-dialog {
     padding: 25px 20px;
@@ -1420,7 +1420,7 @@ body.in-game #incident-note {
   color: #a8c1bd;
 }
 #new-best {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.5px;
   margin: 9px 0 0;
   color: #ffce97;
@@ -1552,7 +1552,7 @@ body.in-game #incident-note {
     font-size: 27px;
   }
   .mode > span {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 1px;
   }
   .menu-title {
@@ -1570,7 +1570,7 @@ body.in-game #incident-note {
     left: 25px;
   }
   #incident-note {
-    font-size: 9px;
+    font-size: 10px;
     bottom: 41px;
   }
   #end-screen > .panel {
@@ -1595,7 +1595,7 @@ body.in-game #incident-note {
   }
   .brief-controls {
     gap: 9px;
-    font-size: 9px;
+    font-size: 10px;
   }
   #run-chart {
     height: 23px;
@@ -1666,7 +1666,7 @@ body.in-game #incident-note {
     top: 55px;
   }
   .mode > span {
-    font-size: 8px;
+    font-size: 10px;
   }
   .mode strong {
     font-size: 23px;
@@ -1688,7 +1688,7 @@ body.in-game #incident-note {
 }
 #satire-event small {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1.4px;
   color: #a7c1bd;
 }
@@ -1913,7 +1913,7 @@ body.in-game #incident-note {
     width: 220px;
   }
   #event-banner {
-    top: 165px;
+    top: 204px;
     left: auto;
     right: 16px;
     transform: none;
@@ -1927,7 +1927,7 @@ body.in-game #incident-note {
     font-size: 19px;
   }
   #event-kicker {
-    font-size: 9px;
+    font-size: 10px;
   }
   .utility button {
     min-width: 36px;
@@ -2016,4 +2016,32 @@ body.in-game #incident-note {
 .panel > .sponsor-slot {
   border-top: 1px solid #304e57;
   margin-top: 16px;
+}
+
+/* Legibility over the scene, status colour, reduced-motion flashes. */
+#hud,
+#satire-event,
+#ghost-score,
+.menu-bottom,
+#incident-note,
+.brief-controls,
+.touch-hint,
+.geo-label {
+  text-shadow: 0 1px 8px #03212cd0;
+}
+.world-status[data-status='disrupted'] i {
+  background: #f18063;
+}
+.world-status[data-status='unavailable'] i {
+  background: #8fa9ab;
+}
+#end-screen #end-kicker {
+  font-size: 10px;
+  margin: 0 0 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  #damage-flash,
+  #speed-lines {
+    display: none;
+  }
 }

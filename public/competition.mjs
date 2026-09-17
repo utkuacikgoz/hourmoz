@@ -18,7 +18,7 @@ export async function api(path, options = {}) {
 export async function beginRanked(mode) {
   const visit = await landing;
   try {
-    return await api('/api/runs', {
+    const session = await api('/api/runs', {
       method: 'POST',
       body: JSON.stringify({
         mode,
@@ -28,8 +28,10 @@ export async function beginRanked(mode) {
         challenge: new URLSearchParams(location.search).get('ghost'),
       }),
     });
-  } catch {
-    return null;
+    return {session, error: null};
+  } catch (error) {
+    // The reason is shown to the player instead of silently falling back to practice.
+    return {session: null, error: error.message};
   }
 }
 export async function loadGhost(mode, seed) {
@@ -43,6 +45,13 @@ export async function loadGhost(mode, seed) {
     $('challenge-copy').textContent = 'Challenge ended. Play today’s course.';
     return null;
   }
+}
+function selectTab(board) {
+  document.querySelectorAll('[data-board]').forEach(b => {
+    const on = b.dataset.board === board;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
 }
 export function setCompetitionMode(mode) {
   selected = mode;
@@ -139,7 +148,9 @@ export function finishCompetition(data, samples) {
     ? data.session.ranked === false
       ? 'Practice challenge · outside today’s rankings.'
       : ''
-    : 'Offline run · score not ranked.';
+    : data.reason
+      ? data.reason + ' Score not ranked.'
+      : 'Offline run · score not ranked.';
   try {
     $('player-name').value = localStorage.getItem('hormuz-name') || '';
   } catch {}
@@ -173,22 +184,26 @@ export function setupCompetition(pause) {
   $('show-leaderboard').onclick = () => {
     pause(true);
     $('leaderboard-dialog').showModal();
-    document.querySelectorAll('[data-board]').forEach(b => b.classList.toggle('active', b.dataset.board === selected));
+    selectTab(selected);
     loadBoard(selected);
   };
   $('close-leaderboard').onclick = () => $('leaderboard-dialog').close();
   document.querySelectorAll('[data-board]').forEach(
     b =>
       (b.onclick = () => {
-        document.querySelectorAll('[data-board]').forEach(x => x.classList.toggle('active', x === b));
+        selectTab(b.dataset.board);
         loadBoard(b.dataset.board);
       }),
   );
   $('status-toggle').onclick = () => {
-    $('status-panel').classList.toggle('hidden');
-    if (!$('status-panel').classList.contains('hidden')) pause(true);
+    const open = !$('status-panel').classList.toggle('hidden');
+    $('status-toggle').setAttribute('aria-expanded', String(open));
+    if (open) pause(true);
   };
-  $('close-status').onclick = () => $('status-panel').classList.add('hidden');
+  $('close-status').onclick = () => {
+    $('status-panel').classList.add('hidden');
+    $('status-toggle').setAttribute('aria-expanded', 'false');
+  };
   $('save-card').onclick = saveCard;
   $('share-score').onclick = async () => {
     if (!result) return;
@@ -231,6 +246,7 @@ async function refreshStatus() {
   try {
     const data = await api('/api/status');
     $('strait-status').textContent = data.label.toUpperCase();
+    $('status-toggle').dataset.status = data.status;
     $('status-heading').textContent = data.label;
     $('status-detail').textContent = data.detail;
     $('status-source').href = data.sourceUrl;
@@ -242,6 +258,7 @@ async function refreshStatus() {
       .join(' · ');
   } catch {
     $('strait-status').textContent = 'UNAVAILABLE';
+    $('status-toggle').dataset.status = 'unavailable';
     $('status-heading').textContent = 'Status unavailable';
     $('status-detail').textContent = 'The official source could not be checked.';
   }

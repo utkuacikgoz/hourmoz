@@ -6,6 +6,7 @@ import {Crossing, clamp} from './engine.mjs';
 import {coastlines} from './geography.mjs';
 import {project, course, worldPoint, logicalPoint} from './navigation.mjs';
 import {beginRanked, finishCompetition, setupCompetition, setCompetitionMode, loadGhost} from './competition.mjs';
+let startError = null;
 let ghostData = null,
   ghostIndex = 0,
   ranked = null,
@@ -518,7 +519,9 @@ async function start() {
   domCache.clear();
   starting = true;
   $('deploy').disabled = $('retry').disabled = true;
-  ranked = await beginRanked(mode);
+  const started = await beginRanked(mode);
+  ranked = started.session;
+  startError = started.error;
   ghostData = ranked ? await loadGhost(mode, ranked.seed) : null;
   ghostIndex = 0;
   records = [];
@@ -543,11 +546,13 @@ async function start() {
   player.scale.setScalar(1);
   player.visible = true;
   ring.visible = true;
-  banner(
-    ranked ? (ranked.ranked ? 'TODAY’S COURSE' : 'PRACTICE CHALLENGE') : 'UNRANKED PRACTICE',
-    mode === 'run' ? 'Deliver the cargo' : 'Stop the tankers',
-    3,
-  );
+  if (ranked)
+    banner(
+      ranked.ranked ? 'TODAY’S COURSE' : 'PRACTICE CHALLENGE',
+      mode === 'run' ? 'Deliver the cargo' : 'Stop the tankers',
+      3,
+    );
+  else banner('UNRANKED PRACTICE', startError || 'Leaderboard unavailable', 4);
   sound.play('start');
   document.activeElement?.blur();
 }
@@ -580,15 +585,18 @@ function pause(force) {
 }
 function end() {
   replayClip.finish();
-  finishCompetition({mode, score: game.score, session: ranked, records, ticks, name: null}, scoreHistory);
+  finishCompetition(
+    {mode, score: game.score, session: ranked, reason: startError, records, ticks, name: null},
+    scoreHistory,
+  );
   show('end-screen', true);
   show('touch-controls', false);
   show('pause', false);
-  $('end-kicker').textContent = (ranked?.day || new Date().toISOString().slice(0, 10)) + ' / DAILY CHALLENGE';
+  $('end-kicker').textContent = 'DAILY CHALLENGE · ' + (ranked?.day || new Date().toISOString().slice(0, 10));
   $('end-title').innerHTML = game.win
     ? mode === 'run'
       ? 'DELIVERED'
-      : 'RUN COMPLETE'
+      : 'STRAIT HELD'
     : game.lastHit === 'escaped'
       ? 'CONVOY ESCAPED'
       : game.lastHit === 'missile'
@@ -598,7 +606,7 @@ function end() {
           : 'SHIP COLLISION';
   $('final-score').textContent = game.score.toLocaleString();
   $('end-detail').textContent =
-    `${Math.floor(game.time)}s · ${mode === 'run' ? game.delivered + ' checkpoint' + (game.delivered === 1 ? '' : 's') : game.stopped + ' stopped · ' + game.escaped + ' escaped'}`;
+    `${Math.floor(game.time)}s · ${mode === 'run' ? game.delivered + ' sector' + (game.delivered === 1 ? '' : 's') + ' cleared' : game.stopped + ' stopped · ' + game.escaped + ' escaped'}`;
   const record = game.score > (best[mode] || 0);
   show('new-best', record);
   if (record) {
@@ -691,8 +699,7 @@ function handleEvents() {
       flash = 0.2;
       sound.play('warning');
     }
-    if (e.type === 'sector')
-      banner(`CHECKPOINT ${e.sector - 1} CLEARED`, `${105 - Math.floor(game.time)} seconds left`, 2);
+    if (e.type === 'sector') banner(`SECTOR ${e.sector - 1} CLEARED`, `${105 - Math.floor(game.time)} seconds left`, 2);
     if (e.type === 'end') end();
   }
   game.events = [];
@@ -860,10 +867,10 @@ function updateHUD() {
   style('hull-bar', 'background', p.hull < 30 ? '#f18063' : '#a9d5ba');
   style('boost-bar', 'width', p.boost.toFixed(1) + '%');
   assign('boost-value', 'textContent', Math.round(p.boost) + '%');
-  assign('combo', 'textContent', '×' + game.combo);
+  assign('combo', 'textContent', '×' + game.combo + ' COMBO');
   const t = Math.max(0, Math.ceil(105 - game.time));
   assign('clock', 'textContent', String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'));
-  let sector = `${game.difficulty.stage + 1} <small>LEVEL</small>`,
+  let sector = `<small>LEVEL</small> ${game.difficulty.stage + 1}`,
     progress = (((game.time % 35) / 35) * 100).toFixed(1) + '%';
   if (game.finale) {
     assign('mission-name', 'textContent', mode === 'run' ? 'REACH THE EXIT' : 'HOLD THE STRAIT');

@@ -11,6 +11,7 @@ import {securityHeaders} from '../server/security.mjs';
 // INLINE_ASSETS=1 additionally embeds dist/public into the Worker for a host without a static-assets layer.
 
 const OUT = 'dist/public';
+const LEGACY_ORIGIN = 'https://hourmuz-crossing.acikgozutku1.chatgpt.site';
 const hash = content => createHash('sha256').update(content).digest('hex').slice(0, 10);
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -70,6 +71,8 @@ for (const entry of await readdir('public', {withFileTypes: true})) {
   if (entry.name.endsWith('.html')) {
     let html = await readFile('public/' + entry.name, 'utf8');
     for (const [from, to] of Object.entries(refs)) html = html.replaceAll(`"${from}"`, `"${to}"`);
+    // Social-card and canonical URLs are absolute; SITE_ORIGIN at build time points them at the deployed domain.
+    if (process.env.SITE_ORIGIN) html = html.replaceAll(LEGACY_ORIGIN, new URL(process.env.SITE_ORIGIN).origin);
     const unresolved = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|mjs|css))"/g)]
       .map(m => m[1])
       .filter(ref => !ref.startsWith('/assets/'));
