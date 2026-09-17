@@ -1,7 +1,7 @@
 // A bounded, local-only ring of compressed frames. Recording never leaves the browser.
 export class RunClip {
   constructor() {
-    this.interval = 0.1;
+    this.interval = 0.2;
     this.frames = [];
     this.generation = 0;
     this.last = -1;

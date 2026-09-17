@@ -17,7 +17,17 @@ let ghostData = null,
 function recordAction(kind, value) {
   records.push([ticks, kind, value]);
 }
-const $ = id => document.getElementById(id),
+const elements = new Map();
+// Page elements are static, so each is looked up once. HUD writes below run every frame and only
+// touch the DOM when a value actually changes.
+const $ = id => {
+    let element = elements.get(id);
+    if (!element) {
+      element = document.getElementById(id);
+      if (element) elements.set(id, element);
+    }
+    return element;
+  },
   game = new Crossing(),
   keys = new Set();
 let mode = 'run',
@@ -33,9 +43,23 @@ try {
   best = {...best, ...JSON.parse(localStorage.getItem('hourmuz-best-v2') || '{}')};
 } catch {}
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
+const domCache = new Map();
+function assign(id, prop, value) {
+  const key = id + ':' + prop;
+  if (domCache.get(key) === value) return;
+  domCache.set(key, value);
+  $(id)[prop] = value;
+}
+function style(id, prop, value) {
+  const key = id + ':style:' + prop;
+  if (domCache.get(key) === value) return;
+  domCache.set(key, value);
+  $(id).style[prop] = value;
+}
 // The WebGL fallback button is wired here so the page needs no inline script.
 $('reload').onclick = () => location.reload();
-const graphics = new GraphicsBudget(),
+const coarsePointer = matchMedia('(pointer: coarse)').matches,
+  graphics = new GraphicsBudget(coarsePointer ? 1 : 0),
   reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#143e4b');
@@ -43,8 +67,8 @@ scene.fog = new THREE.FogExp2('#3c6870', 0.0035);
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
-  renderer.shadowMap.enabled = true;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatio));
+  renderer.shadowMap.enabled = graphics.level < 2;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
@@ -64,7 +88,7 @@ camera.lookAt(0, 0, -8);
 const sun = new THREE.DirectionalLight('#ffe5b0', 3.4);
 sun.position.set(-55, 90, -25);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(coarsePointer ? 1024 : 2048, coarsePointer ? 1024 : 2048);
 sun.shadow.camera.left = -90;
 sun.shadow.camera.right = 90;
 sun.shadow.camera.top = 110;
@@ -362,10 +386,19 @@ const pm = new THREE.ShaderMaterial({
 const cloud = new THREE.Points(pg, pm);
 cloud.frustumCulled = false;
 scene.add(cloud);
+const colorCache = new Map();
+function rgb(color) {
+  let parsed = colorCache.get(color);
+  if (!parsed) {
+    parsed = new THREE.Color(color);
+    colorCache.set(color, parsed);
+  }
+  return parsed;
+}
 function particle(x, y, z, vx, vy, vz, life, size, color, opacity = 0.8) {
   const i = particleHead++ % capacity,
     p = particles[i],
-    c = new THREE.Color(color),
+    c = rgb(color),
     origin = worldPoint(x, z, worldTime()),
     next = worldPoint(x + vx * 0.01, z + vz * 0.01, worldTime());
   Object.assign(p, {
@@ -380,7 +413,9 @@ function particle(x, y, z, vx, vy, vz, life, size, color, opacity = 0.8) {
     size,
     opacity,
   });
-  colors.set([c.r, c.g, c.b], i * 3);
+  colors[i * 3] = c.r;
+  colors[i * 3 + 1] = c.g;
+  colors[i * 3 + 2] = c.b;
 }
 function burst(x, z, big = false) {
   const n = big ? 80 : 32;
@@ -480,6 +515,7 @@ function choose(m) {
 async function start() {
   if (starting) return;
   replayClip.reset();
+  domCache.clear();
   starting = true;
   $('deploy').disabled = $('retry').disabled = true;
   ranked = await beginRanked(mode);
@@ -785,89 +821,111 @@ function updateSatire() {
   show('satire-event', visible);
   if (!visible) return;
   show('pay-checkpoint', checkpoint);
-  $('pay-checkpoint').disabled = paused || game.score < 300;
+  assign('pay-checkpoint', 'disabled', paused || game.score < 300);
   let left, total;
   if (checkpoint) {
-    $('satire-title').textContent = 'IRANIAN CHECKPOINT';
-    $('satire-detail').textContent =
-      game.score >= 300 ? 'Pay for 4s safe passage. Or dodge the mines.' : 'Dodge the mines · payoff costs 300 points';
+    assign('satire-title', 'textContent', 'IRANIAN CHECKPOINT');
+    assign(
+      'satire-detail',
+      'textContent',
+      game.score >= 300 ? 'Pay for 4s safe passage. Or dodge the mines.' : 'Dodge the mines · payoff costs 300 points',
+    );
     left = game.checkpointUntil - game.time;
     total = 6;
   } else if (paid) {
-    $('satire-title').textContent = 'PAPERWORK APPROVED';
-    $('satire-detail').textContent = '−300 points · Safe passage';
+    assign('satire-title', 'textContent', 'PAPERWORK APPROVED');
+    assign('satire-detail', 'textContent', '−300 points · Safe passage');
     left = game.payoffUntil - game.time;
     total = 4;
   } else {
-    $('satire-title').textContent = 'TRUMP POSTED';
-    $('satire-detail').textContent =
+    assign('satire-title', 'textContent', 'TRUMP POSTED');
+    assign(
+      'satire-detail',
+      'textContent',
       game.time < game.postUntil
         ? 'Ships change direction in ' + Math.ceil(game.postUntil - game.time) + 's'
-        : 'Ships are changing direction';
+        : 'Ships are changing direction',
+    );
     left = game.panicUntil - game.time;
     total = 8;
   }
-  $('satire-timer').style.transform = `scaleX(${clamp(left / total, 0, 1)})`;
+  style('satire-timer', 'transform', `scaleX(${clamp(left / total, 0, 1).toFixed(3)})`);
 }
 function updateHUD() {
   updateSatire();
   const p = game.player;
-  $('score').textContent = String(game.score).padStart(6, '0');
-  $('hull-value').textContent = Math.ceil(p.hull);
-  $('hull-bar').style.width = p.hull + '%';
-  $('hull-bar').style.background = p.hull < 30 ? '#f18063' : '#a9d5ba';
-  $('boost-bar').style.width = p.boost + '%';
-  $('boost-value').textContent = Math.round(p.boost) + '%';
-  $('combo').textContent = '×' + game.combo;
+  assign('score', 'textContent', String(game.score).padStart(6, '0'));
+  assign('hull-value', 'textContent', String(Math.ceil(p.hull)));
+  style('hull-bar', 'width', p.hull.toFixed(1) + '%');
+  style('hull-bar', 'background', p.hull < 30 ? '#f18063' : '#a9d5ba');
+  style('boost-bar', 'width', p.boost.toFixed(1) + '%');
+  assign('boost-value', 'textContent', Math.round(p.boost) + '%');
+  assign('combo', 'textContent', '×' + game.combo);
   const t = Math.max(0, Math.ceil(105 - game.time));
-  $('clock').textContent = String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
-  $('sector').innerHTML = `${game.difficulty.stage + 1} <small>LEVEL</small>`;
-  $('progress').style.width = ((game.time % 35) / 35) * 100 + '%';
+  assign('clock', 'textContent', String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'));
+  let sector = `${game.difficulty.stage + 1} <small>LEVEL</small>`,
+    progress = (((game.time % 35) / 35) * 100).toFixed(1) + '%';
   if (game.finale) {
-    $('mission-name').textContent = mode === 'run' ? 'REACH THE EXIT' : 'HOLD THE STRAIT';
-    $('sector').innerHTML =
+    assign('mission-name', 'textContent', mode === 'run' ? 'REACH THE EXIT' : 'HOLD THE STRAIT');
+    sector =
       mode === 'run'
         ? `${Math.max(0, Math.ceil((p.z - game.exitZ) * 10))} <small>M TO EXIT</small>`
         : `${t} <small>SECONDS LEFT</small>`;
-    $('objective').textContent = mode === 'run' ? 'STEER FORWARD TO FINISH SOONER' : 'STOP THE LAST SHIPS';
-    $('progress').style.width = clamp(((game.time - 90) / 15) * 100, 0, 100) + '%';
+    assign('objective', 'textContent', mode === 'run' ? 'STEER FORWARD TO FINISH SOONER' : 'STOP THE LAST SHIPS');
+    progress = clamp(((game.time - 90) / 15) * 100, 0, 100).toFixed(1) + '%';
   }
+  assign('sector', 'innerHTML', sector);
+  style('progress', 'width', progress);
   const cd = mode === 'run' ? 10 : 0.28;
-  $('ability-fill').style.width = (1 - p.cooldown / cd) * 100 + '%';
-  $('special').title =
+  style('ability-fill', 'width', ((1 - p.cooldown / cd) * 100).toFixed(1) + '%');
+  assign(
+    'special',
+    'title',
     mode === 'run'
       ? 'Push missiles away for 3 seconds. Does not stop mines or ships.'
-      : 'Fire at the nearest ship, or aim with the mouse.';
-  $('ability-status').textContent =
-    p.decoy > 0 ? `ACTIVE ${p.decoy.toFixed(1)}s` : p.cooldown > 0.1 ? `${p.cooldown.toFixed(1)}s` : 'READY';
+      : 'Fire at the nearest ship, or aim with the mouse.',
+  );
+  assign(
+    'ability-status',
+    'textContent',
+    p.decoy > 0 ? `ACTIVE ${p.decoy.toFixed(1)}s` : p.cooldown > 0.1 ? `${p.cooldown.toFixed(1)}s` : 'READY',
+  );
 }
 const radar = $('radar').getContext('2d');
-function drawRadar() {
-  radar.clearRect(0, 0, 140, 140);
-  radar.fillStyle = '#617b6855';
+// The coastline, rings and crosshair never change, so they are drawn once to an offscreen layer.
+const radarBase = document.createElement('canvas');
+radarBase.width = radarBase.height = 140;
+{
+  const base = radarBase.getContext('2d');
+  base.fillStyle = '#617b6855';
   for (const polygon of coastlines) {
-    radar.beginPath();
+    base.beginPath();
     polygon.forEach(([lon, lat], i) => {
       const x = ((lon - 54.8) / 3.1) * 140,
         y = ((27.6 - lat) / 2.5) * 140;
-      i ? radar.lineTo(x, y) : radar.moveTo(x, y);
+      i ? base.lineTo(x, y) : base.moveTo(x, y);
     });
-    radar.closePath();
-    radar.fill();
+    base.closePath();
+    base.fill();
   }
-  radar.strokeStyle = '#abcbb033';
-  radar.lineWidth = 1;
+  base.strokeStyle = '#abcbb033';
+  base.lineWidth = 1;
   for (const r of [20, 42, 64]) {
-    radar.beginPath();
-    radar.arc(70, 70, r, 0, Math.PI * 2);
-    radar.stroke();
+    base.beginPath();
+    base.arc(70, 70, r, 0, Math.PI * 2);
+    base.stroke();
   }
-  radar.beginPath();
-  radar.moveTo(6, 70);
-  radar.lineTo(134, 70);
-  radar.moveTo(70, 6);
-  radar.lineTo(70, 134);
-  radar.stroke();
+  base.beginPath();
+  base.moveTo(6, 70);
+  base.lineTo(134, 70);
+  base.moveTo(70, 6);
+  base.lineTo(70, 134);
+  base.stroke();
+}
+function drawRadar() {
+  radar.clearRect(0, 0, 140, 140);
+  radar.drawImage(radarBase, 0, 0);
+  radar.lineWidth = 1;
   radar.strokeStyle = '#b7d2a66a';
   radar.beginPath();
   radar.moveTo(70, 70);
@@ -889,6 +947,9 @@ function drawRadar() {
   radar.arc(px, py, 3, 0, Math.PI * 2);
   radar.fill();
 }
+const living = new Set(),
+  shotIds = new Set(),
+  projected = new THREE.Vector3();
 function sync(dt) {
   ghostShip.visible = false;
   const trail = ghostData?.trail;
@@ -936,7 +997,7 @@ function sync(dt) {
     line.visible = game.phase === 'play';
   }
   for (; warningIndex < aimWarnings.length; warningIndex++) aimWarnings[warningIndex].visible = false;
-  const living = new Set();
+  living.clear();
   for (const e of game.entities) {
     living.add(e.id);
     let m = objects.get(e.id);
@@ -986,7 +1047,7 @@ function sync(dt) {
       objects.delete(id);
     }
   }
-  const shotIds = new Set();
+  shotIds.clear();
   for (const s of game.shots) {
     shotIds.add(s.id);
     let m = projectileObjects.get(s.id);
@@ -1039,7 +1100,9 @@ function sync(dt) {
         q.y = 0.1;
         q.vy = 0;
       }
-      positions.set([q.x, q.y, q.z], i * 3);
+      positions[i * 3] = q.x;
+      positions[i * 3 + 1] = q.y;
+      positions[i * 3 + 2] = q.z;
       sizes[i] = q.size * (1 + (1 - q.life / q.max) * 1.2);
       alphas[i] = Math.max(0, q.life / q.max) * q.opacity;
     } else alphas[i] = 0;
@@ -1069,12 +1132,20 @@ function sync(dt) {
   camera.bottom = -halfW / aspect;
   camera.updateProjectionMatrix();
   pm.uniforms.uScale.value = (innerWidth / (halfW * 2)) * renderer.getPixelRatio();
-  geoLabels.forEach(label => {
-    const q = label.position.clone().project(camera);
-    label.el.style.left = (q.x * 0.5 + 0.5) * innerWidth + 'px';
-    label.el.style.top = (-q.y * 0.5 + 0.5) * innerHeight + 'px';
-    label.el.style.display = Math.abs(q.x) > 1 || Math.abs(q.y) > 1 ? 'none' : '';
-  });
+  for (const label of geoLabels) {
+    const q = projected.copy(label.position).project(camera);
+    const left = Math.round((q.x * 0.5 + 0.5) * innerWidth),
+      top = Math.round((-q.y * 0.5 + 0.5) * innerHeight),
+      display = Math.abs(q.x) > 1 || Math.abs(q.y) > 1 ? 'none' : '';
+    if (label.left !== left || label.top !== top || label.display !== display) {
+      label.left = left;
+      label.top = top;
+      label.display = display;
+      label.el.style.left = left + 'px';
+      label.el.style.top = top + 'px';
+      label.el.style.display = display;
+    }
+  }
   ocean.material.uniforms.uTime.value = clock;
 }
 function resize() {
@@ -1097,6 +1168,7 @@ choose(
     ? new URLSearchParams(location.search).get('challenge')
     : mode,
 );
+let idleFrames = 0;
 function frame(now) {
   const timing = frameTiming(now - last),
     realDt = timing.dt;
@@ -1105,12 +1177,17 @@ function frame(now) {
   if (game.phase === 'play' && !paused && graphics.update(realDt)) {
     renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatio));
     renderer.shadowMap.enabled = graphics.level < 2;
-    replayClip.interval = graphics.level >= 2 ? 0.2 : 0.1;
+    replayClip.interval = graphics.level >= 2 ? 0.4 : 0.2;
     resize();
   }
   const active = game.phase === 'play' && !paused,
     dt = paused ? 0 : realDt;
   clock += dt;
+  // The pause and results screens sit on a blurred overlay, so the scene behind them renders at a third of the rate.
+  if ((paused || game.phase === 'end') && ++idleFrames % 3) {
+    requestAnimationFrame(frame);
+    return;
+  }
   if (active) {
     game.input.x = clamp(
       (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joystick.x,
@@ -1151,7 +1228,7 @@ function frame(now) {
   bannerTime -= realDt;
   if (bannerTime <= 0) $('event-banner').classList.remove('show');
   updateHUD();
-  drawRadar();
+  if (game.phase !== 'menu') drawRadar();
   sound.tick(game.phase === 'play' && !paused, game.boosting, game.difficulty.stage);
   renderer.render(scene, camera);
   if (active) replayClip.capture(renderer.domElement, game.time, game.score, game.phase === 'end');
