@@ -8,7 +8,7 @@ const env = {DB: localDB()},
 const req = (path, data, cookie = '') =>
   new Request(origin + path, {
     method: data ? 'POST' : 'GET',
-    headers: {Origin: origin, 'Content-Type': 'application/json', Cookie: cookie},
+    headers: {Origin: origin, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', Cookie: cookie},
     body: data ? JSON.stringify(data) : undefined,
   });
 let response = await worker.fetch(req('/api/runs', {mode: 'run', rules: RULES_VERSION}), env);
@@ -204,3 +204,30 @@ console.log('PASS: browser lifecycle and server replay agree across seeds, modes
   }
 }
 console.log('PASS: status checks are coalesced and failures are cached.');
+
+// Frequently polled reads are served from a short per-isolate cache that skips the rate limiter;
+// Cache-Control: no-cache forces a fresh read, and a saved score invalidates its leaderboard.
+{
+  const plain = path => worker.fetch(new Request(origin + path), env);
+  const used = () => env.DB.sqlite.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM rate_limits').get().n;
+  const first = await (await plain('/api/leaderboard?mode=block')).json();
+  const before = used();
+  env.DB.sqlite
+    .prepare(
+      "INSERT INTO scores (player_id, mode, name, score, duration, won, created_at, rules) VALUES ('cache-player', 'block', 'Cached', 5, 5, 0, ?, ?)",
+    )
+    .run(Date.now(), RULES_VERSION);
+  assert.deepEqual(await (await plain('/api/leaderboard?mode=block')).json(), first);
+  assert.equal(used(), before);
+  const fresh = await (await worker.fetch(req('/api/leaderboard?mode=block'), env)).json();
+  assert.equal(fresh.entries.length, first.entries.length + 1);
+  assert(used() > before);
+  const metrics = await plain('/api/metrics');
+  assert.equal(metrics.headers.get('Cache-Control'), 'public, max-age=15');
+  assert.equal((await plain('/api/leaderboard?mode=block')).headers.get('Cache-Control'), 'no-store');
+  const assetsEnv = {...env, ASSETS: {fetch: async r => new Response('asset ' + new URL(r.url).pathname)}};
+  const asset = await worker.fetch(new Request(origin + '/assets/game-abc.js'), assetsEnv);
+  assert.equal(await asset.text(), 'asset /assets/game-abc.js');
+  assert.equal(asset.headers.get('X-Frame-Options'), 'DENY');
+}
+console.log('PASS: cached reads skip the limiter, no-cache bypasses, static requests proxy to the assets binding.');

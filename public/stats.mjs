@@ -99,7 +99,7 @@ $('refresh').onclick = refresh;
 void refresh();
 setInterval(() => {
   if (!document.hidden) void refresh();
-}, 15000);
+}, 30000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) void refresh();
 });

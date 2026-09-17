@@ -93,4 +93,4 @@ await refresh();
 void checkPayment();
 setInterval(() => {
   if (!document.hidden && !busy) void refresh();
-}, 15000);
+}, 30000);

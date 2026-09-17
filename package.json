@@ -9,7 +9,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pretest": "npm run build",
-    "test": "node tests/engine.test.mjs && node tests/golden.test.mjs && node --experimental-sqlite tests/api.test.mjs && node tests/replay-clip.test.mjs && node --experimental-sqlite tests/security.test.mjs && node tests/performance.test.mjs && node --experimental-sqlite tests/analytics.test.mjs && node --experimental-sqlite tests/sponsorship.test.mjs && node tests/identity.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/build.test.mjs && node tests/golden.test.mjs && node --experimental-sqlite tests/api.test.mjs && node tests/replay-clip.test.mjs && node --experimental-sqlite tests/security.test.mjs && node tests/performance.test.mjs && node --experimental-sqlite tests/analytics.test.mjs && node --experimental-sqlite tests/sponsorship.test.mjs && node tests/identity.test.mjs",
     "golden:update": "node tests/golden.test.mjs --update",
     "deploy:check": "wrangler deploy --dry-run --outdir dist/dry-run",
     "db:generate": "drizzle-kit generate"

@@ -220,7 +220,7 @@ try {
     worker.fetch(
       new Request(origin + path, {
         method: data ? 'POST' : 'GET',
-        headers: {Origin: origin, 'Content-Type': 'application/json', ...headers},
+        headers: {Origin: origin, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...headers},
         body: data ? JSON.stringify(data) : undefined,
       }),
       env,

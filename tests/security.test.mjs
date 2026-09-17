@@ -69,7 +69,15 @@ console.log(
 );
 
 // Every page and API response carries the security headers; HSTS only over HTTPS.
-const page = await worker.fetch(new Request('https://game.test/'), {DB: db});
+const assetsEnv = {
+  DB: db,
+  ASSETS: {
+    fetch: async r => new Response('asset ' + new URL(r.url).pathname, {headers: {'Content-Type': 'text/plain'}}),
+  },
+};
+const page = await worker.fetch(new Request('https://game.test/'), assetsEnv);
+assert.equal(await page.text(), 'asset /');
+assert.equal((await worker.fetch(new Request('https://game.test/missing.png'), {DB: db})).status, 404);
 assert.equal(page.status, 200);
 assert.match(page.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
 assert.match(page.headers.get('Content-Security-Policy'), /script-src 'self'/);
@@ -82,5 +90,5 @@ assert.equal(api.headers.get('Cache-Control'), 'no-store');
 assert.equal(securityHeaders(new URL('http://127.0.0.1:4173/'))['Strict-Transport-Security'], undefined);
 const login = await worker.fetch(new Request('https://game.test/owner-login?returnTo=https://evil.example'), {DB: db});
 assert.equal(login.status, 302);
-assert.equal(login.headers.get('Location'), '/sponsor-admin.html');
+assert.equal(login.headers.get('Location'), '/sponsor-admin');
 console.log('PASS: security headers on pages and APIs, HSTS only on HTTPS, owner login cannot redirect off-site.');

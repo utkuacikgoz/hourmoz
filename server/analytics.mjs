@@ -25,7 +25,7 @@ export async function sponsorship(now = Date.now(), db = null) {
       safeLink(s.url),
   );
   return {
-    bookingUrl: '/sponsor.html',
+    bookingUrl: '/sponsor',
     sponsor:
       (db ? await paidSponsor(db) : null) ?? (active ? {id: active.id, name: active.name, url: active.url, day} : null),
   };

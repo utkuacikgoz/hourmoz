@@ -158,28 +158,121 @@ async function straitStatus() {
     });
   return statusPending;
 }
+// Short-lived per-isolate cache for frequently polled reads. Entries are keyed by route and skipped
+// when a request carries Cache-Control: no-cache.
+const cache = new Map();
+const CACHEABLE = new Set(['/api/sponsor', '/api/auction', '/api/metrics', '/api/leaderboard', '/api/status']);
+function fromCache(key) {
+  const entry = cache.get(key);
+  return entry && Date.now() < entry.until ? entry.value : undefined;
+}
+function remember(key, ttl, value) {
+  cache.set(key, {until: Date.now() + ttl, value});
+}
+function forget(prefix) {
+  for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key);
+}
+async function leaderboard(database, mode) {
+  const start = Math.floor(Date.now() / DAY) * DAY;
+  const rows = await database
+    .prepare(
+      'SELECT name, score, duration, won FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? ORDER BY score DESC, created_at ASC LIMIT 10',
+    )
+    .bind(mode, RULES_VERSION, start, start + DAY)
+    .all();
+  return {day: dayString(), mode, entries: rows.results ?? []};
+}
+async function metrics(database) {
+  const since = Date.now() - 30 * DAY;
+  const totals = await database
+    .prepare(
+      'SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(card),0) AS cards, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?',
+    )
+    .bind(since)
+    .first();
+  const returning = await database
+    .prepare(
+      'SELECT COUNT(*) AS count FROM (SELECT player_id FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY player_id HAVING COUNT(DISTINCT CAST(created_at / 86400000 AS INTEGER)) > 1)',
+    )
+    .bind(since)
+    .first();
+  const daily = await database
+    .prepare(
+      "SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, SUM(completed) AS completed, SUM(shared) AS shared FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY day ORDER BY day DESC LIMIT 30",
+    )
+    .bind(since)
+    .all();
+  const online = await database
+    .prepare('SELECT COUNT(*) AS count FROM presence WHERE seen_at >= ?')
+    .bind(Date.now() - 90000)
+    .first();
+  const modes = await database
+    .prepare(
+      'SELECT mode, COUNT(*) AS starts, SUM(completed) AS completed FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY mode',
+    )
+    .bind(since)
+    .all();
+  return {
+    ...totals,
+    online: online.count,
+    modes: modes.results,
+    ...(await visitMetrics(database, since)),
+    replays: totals.starts - totals.players,
+    returningPlayers: returning.count,
+    days: daily.results ?? [],
+    updatedAt: new Date().toISOString(),
+  };
+}
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     try {
       if (url.pathname === '/owner-login' && request.method === 'GET') {
-        const target = url.searchParams.get('returnTo') === '/sponsor.html' ? '/sponsor.html' : '/sponsor-admin.html';
+        const target = url.searchParams.get('returnTo') === '/sponsor' ? '/sponsor' : '/sponsor-admin';
         return new Response(null, {status: 302, headers: {Location: target, 'Cache-Control': 'no-store'}});
       }
-      if (url.pathname === '/api/stripe/webhook' && request.method === 'POST')
-        return json(await stripeWebhook(db(env), env, request));
-      if (url.pathname.startsWith('/api/')) await limitRequest(request, db(env), env.RATE_LIMIT_SECRET);
+      if (url.pathname === '/api/stripe/webhook' && request.method === 'POST') {
+        const result = await stripeWebhook(db(env), env, request);
+        forget('auction:');
+        forget('sponsor');
+        return json(result);
+      }
+      // Cached reads skip the database and the rate limiter entirely; everything else pays the limiter once.
+      const bypass = !!request.headers.get('Cache-Control')?.includes('no-cache');
+      let limited = false;
+      const limit = async () => {
+        if (limited) return;
+        limited = true;
+        await limitRequest(request, db(env), env.RATE_LIMIT_SECRET);
+      };
+      const cachedValue = async (key, ttl, compute) => {
+        let value = bypass ? undefined : fromCache(key);
+        if (value === undefined) {
+          await limit();
+          value = await compute();
+          remember(key, ttl, value);
+        }
+        return value;
+      };
+      if (url.pathname.startsWith('/api/') && !(request.method === 'GET' && CACHEABLE.has(url.pathname))) await limit();
       if (url.pathname === '/api/sponsor' && request.method === 'GET')
-        return json(await sponsorship(Date.now(), db(env)));
-      if (url.pathname === '/api/auction' && request.method === 'GET')
-        return json({
-          ...(await publicAuction(
-            db(env),
-            paymentsEnabled(env) && (!testMode(env) || (await isOwner(request, env, ctx))),
-            testMode(env) && (await isOwner(request, env, ctx)) ? 1 : 0,
-          )),
-          testAvailable: paymentsEnabled(env) && !!testMode(env),
+        return json(await cachedValue('sponsor', 15000, () => sponsorship(Date.now(), db(env))), 200, {
+          'Cache-Control': 'public, max-age=15',
         });
+      if (url.pathname === '/api/auction' && request.method === 'GET') {
+        const owner = paymentsEnabled(env) && testMode(env) ? await isOwner(request, env, ctx) : false;
+        const testing = testMode(env) && owner ? 1 : 0;
+        const auction = await cachedValue('auction:' + testing, 10000, () => publicAuction(db(env), true, testing));
+        return json(
+          {
+            ...auction,
+            enabled: paymentsEnabled(env) && (!testMode(env) || owner),
+            testAvailable: paymentsEnabled(env) && !!testMode(env),
+          },
+          200,
+          {'Cache-Control': 'private, max-age=10'},
+        );
+      }
       if (url.pathname === '/api/auction/admin' && request.method === 'GET') {
         await requireOwner(request, env, ctx);
         return json(await ownerBids(db(env)));
@@ -195,59 +288,18 @@ export default {
           return json({error: 'This challenge has ended. Play today’s course.'}, 404);
         return json(JSON.parse(run.ghost));
       }
-      if (url.pathname === '/api/metrics' && request.method === 'GET') {
-        const since = Date.now() - 30 * DAY;
-        const totals = await db(env)
-          .prepare(
-            'SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(card),0) AS cards, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?',
-          )
-          .bind(since)
-          .first();
-        const returning = await db(env)
-          .prepare(
-            'SELECT COUNT(*) AS count FROM (SELECT player_id FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY player_id HAVING COUNT(DISTINCT CAST(created_at / 86400000 AS INTEGER)) > 1)',
-          )
-          .bind(since)
-          .first();
-        const daily = await db(env)
-          .prepare(
-            "SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, SUM(completed) AS completed, SUM(shared) AS shared FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY day ORDER BY day DESC LIMIT 30",
-          )
-          .bind(since)
-          .all();
-        const online = await db(env)
-          .prepare('SELECT COUNT(*) AS count FROM presence WHERE seen_at >= ?')
-          .bind(Date.now() - 90000)
-          .first();
-        const modes = await db(env)
-          .prepare(
-            'SELECT mode, COUNT(*) AS starts, SUM(completed) AS completed FROM runs WHERE tracked = 1 AND created_at >= ? GROUP BY mode',
-          )
-          .bind(since)
-          .all();
-        return json({
-          ...totals,
-          online: online.count,
-          modes: modes.results,
-          ...(await visitMetrics(db(env), since)),
-          replays: totals.starts - totals.players,
-          returningPlayers: returning.count,
-          days: daily.results ?? [],
-          updatedAt: new Date().toISOString(),
+      if (url.pathname === '/api/metrics' && request.method === 'GET')
+        return json(await cachedValue('metrics', 30000, () => metrics(db(env))), 200, {
+          'Cache-Control': 'public, max-age=15',
         });
+      if (url.pathname === '/api/status' && request.method === 'GET') {
+        if (!(statusCache && Date.now() < statusCache.until)) await limit();
+        return json(await straitStatus(), 200, {'Cache-Control': 'public, max-age=60'});
       }
-      if (url.pathname === '/api/status' && request.method === 'GET') return json(await straitStatus());
       if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
         const mode = url.searchParams.get('mode');
         if (!validMode(mode)) return json({error: 'Choose a mission.'}, 400);
-        const start = Math.floor(Date.now() / DAY) * DAY;
-        const rows = await db(env)
-          .prepare(
-            'SELECT name, score, duration, won FROM scores WHERE mode = ? AND rules = ? AND created_at >= ? AND created_at < ? ORDER BY score DESC, created_at ASC LIMIT 10',
-          )
-          .bind(mode, RULES_VERSION, start, start + DAY)
-          .all();
-        return json({day: dayString(), mode, entries: rows.results ?? []});
+        return json(await cachedValue('leaderboard:' + mode, 5000, () => leaderboard(db(env), mode)));
       }
       if (url.pathname.startsWith('/api/') && request.method === 'POST') {
         const origin = request.headers.get('Origin');
@@ -268,7 +320,10 @@ export default {
           if (testMode(env)) await requireOwner(request, env, ctx);
           const data = await readJSON(request, 2048);
           if (typeof data.id !== 'string') return json({error: 'Invalid payment.'}, 400);
-          return json(await paymentStatus(db(env), env, data.id, playerId(request)));
+          const payment = await paymentStatus(db(env), env, data.id, playerId(request));
+          forget('auction:');
+          forget('sponsor');
+          return json(payment);
         }
         if (url.pathname === '/api/presence') {
           const data = await readJSON(request, 2048),
@@ -293,7 +348,10 @@ export default {
         }
         if (url.pathname === '/api/auction/admin') {
           await requireOwner(request, env, ctx);
-          return json(await reviewBid(db(env), await readJSON(request, 8192)));
+          const review = await reviewBid(db(env), await readJSON(request, 8192));
+          forget('auction:');
+          forget('sponsor');
+          return json(review);
         }
         if (url.pathname === '/api/visits') {
           const data = await body(request),
@@ -464,6 +522,7 @@ export default {
               ),
             db(env).prepare('UPDATE runs SET submitted = 1 WHERE id = ? AND player_id = ?').bind(run.id, player),
           ]);
+          forget('leaderboard:' + run.mode);
           const dayStart = Math.floor(run.created_at / DAY) * DAY;
           const result = await db(env)
             .prepare(
@@ -476,6 +535,14 @@ export default {
       }
       if (url.pathname.startsWith('/api/')) return json({error: 'Not found.'}, 404);
       if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', {status: 405});
+      // Static files normally come straight from Workers Static Assets and never reach this code. Any that
+      // do are proxied to the assets binding, or served from the embedded copy on a host without one.
+      if (env.ASSETS) {
+        const response = await env.ASSETS.fetch(request);
+        const headers = new Headers(response.headers);
+        for (const [name, value] of Object.entries(securityHeaders(url))) headers.set(name, value);
+        return new Response(response.body, {status: response.status, headers});
+      }
       const file = assets[url.pathname === '/' ? '/index.html' : url.pathname];
       if (!file) return new Response('Not found', {status: 404});
       return new Response(
@@ -484,7 +551,15 @@ export default {
           : file.encoding === 'base64'
             ? Uint8Array.from(atob(file.body), c => c.charCodeAt(0))
             : file.body,
-        {headers: {'Content-Type': file.type, 'Cache-Control': 'public, max-age=60', ...securityHeaders(url)}},
+        {
+          headers: {
+            'Content-Type': file.type,
+            'Cache-Control': url.pathname.startsWith('/assets/')
+              ? 'public, max-age=31536000, immutable'
+              : 'public, max-age=60',
+            ...securityHeaders(url),
+          },
+        },
       );
     } catch (error) {
       if (error.status)

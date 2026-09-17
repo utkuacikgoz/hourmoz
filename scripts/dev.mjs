@@ -28,7 +28,9 @@ createServer(async (req, res) => {
     if (!req.url.startsWith('/api/') && !req.url.startsWith('/owner-login')) {
       const path = new URL(request.url).pathname;
       try {
-        const data = await readFile('public' + (path === '/' ? '/index.html' : path));
+        const file = 'public' + (path === '/' ? '/index.html' : path);
+        // Clean page paths mirror the static host, which serves /sponsor for sponsor.html.
+        const data = await readFile(file).catch(() => readFile(file + '.html'));
         const ext = path.split('.').pop();
         response = new Response(data, {
           headers: {'Content-Type': types[ext] ?? 'text/html', ...securityHeaders(new URL(request.url))},

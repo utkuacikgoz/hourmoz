@@ -11,7 +11,7 @@ const request = (path, data, cookie = '') =>
   worker.fetch(
     new Request(origin + path, {
       method: data ? 'POST' : 'GET',
-      headers: {Origin: origin, 'Content-Type': 'application/json', Cookie: cookie},
+      headers: {Origin: origin, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', Cookie: cookie},
       body: data ? JSON.stringify(data) : undefined,
     }),
     env,

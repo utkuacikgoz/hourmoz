@@ -134,7 +134,7 @@ if (browser) {
   void setupSponsors();
   setInterval(() => {
     if (!document.hidden) void setupSponsors();
-  }, 15000);
+  }, 60000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) void setupSponsors();
   });

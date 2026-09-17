@@ -128,8 +128,8 @@ export async function submitBid(db, env, data, player) {
     'metadata[bid_id]': bid.id,
     'payment_intent_data[metadata][bid_id]': bid.id,
     client_reference_id: bid.id,
-    success_url: ORIGIN + '/sponsor.html?payment=' + bid.id,
-    cancel_url: ORIGIN + '/sponsor.html',
+    success_url: ORIGIN + '/sponsor?payment=' + bid.id,
+    cancel_url: ORIGIN + '/sponsor',
     'custom_text[submit][message]':
       'One-time payment. Your name and website stay visible until a higher payment replaces you. No minimum display time. If a higher bid wins before yours is processed, yours is refunded.',
   };

@@ -5,8 +5,8 @@ A standalone naval arcade game with real Hormuz coastlines, a daily challenge, n
 ## Run
 
 - `npm install`
-- `npm run build`
-- `npm run dev` — opens an HTTP server at http://127.0.0.1:4173. Node 22 with experimental SQLite support is required for the local development server.
+- `npm run build` — writes the deployable site to `dist/public` (hashed bundles under `/assets`) and the API-only Worker to `dist/server`.
+- `npm run dev` — opens an HTTP server at http://127.0.0.1:4173 that serves the unbundled files in `public/` with the production security headers. Node 22 with experimental SQLite support is required for the local development server.
 - `npm test` — simulation, golden replay, API, security, analytics and sponsorship tests.
 - `npm run lint` and `npm run format` — ESLint and Prettier; CI runs both plus `npm run format:check`.
 - `npm run deploy:check` — bundles the Worker with Wrangler in dry-run mode to validate the deploy configuration without credentials.
