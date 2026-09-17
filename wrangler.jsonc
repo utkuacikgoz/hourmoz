@@ -14,7 +14,10 @@
     "not_found_handling": "none",
     "run_worker_first": ["/api/*", "/owner-login"],
   },
-  // Set APP_ORIGIN, AUCTION_OWNER_EMAIL and CF_ACCESS_AUD as variables and the Stripe keys as secrets in Worker settings.
+  // AUCTION_OWNER_EMAIL, CF_ACCESS_AUD and the Stripe keys are Worker secrets (wrangler secret put), never committed.
+  "vars": {"APP_ORIGIN": "https://ishormuzopen.fun"},
+  // Once the zone ishormuzopen.fun is active in this Cloudflare account, uncomment to bind it on deploy.
+  // "routes": [{ "pattern": "ishormuzopen.fun", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
