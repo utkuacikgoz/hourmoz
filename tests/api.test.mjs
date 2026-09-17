@@ -49,3 +49,7 @@ console.log('PASS: verified ghost path, immutable challenge, matching seed, prac
 // Match the real browser lifecycle: one engine reused across starts with a fresh session seed.
 for(const mode of ['run','block']){const browser=new Crossing();for(const seed of [1234,9876,1234]){browser.reset(mode,seed);let tick=0;const input=[[0,'i',[0,0,0,0,null,null]]];while(browser.phase!=='end'&&tick<6302){browser.tick(1/60);browser.events=[];tick++}const server=replay(seed,mode,input,tick);assert.equal(server.score,browser.score);assert.equal(server.time,browser.time);assert.equal(server.player.hull,browser.player.hull)}}
 console.log('PASS: browser lifecycle and server replay agree across seeds, modes and restarts.');
+
+// The official status source is checked once per isolate at a time, and a failed check is remembered briefly.
+{const realFetch=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw new Error('offline')};try{const results=await Promise.all([1,2,3].map(()=>worker.fetch(req('/api/status'),env)));assert.equal(calls,1);assert.equal((await results[0].json()).status,'unavailable');globalThis.fetch=async()=>{calls++;return new Response('<p>Information related to shipping and seafarers</p><p>stranded on vessels unable to exit the Strait of Hormuz</p>')};assert.equal((await (await worker.fetch(req('/api/status'),env)).json()).status,'unavailable');assert.equal(calls,1)}finally{globalThis.fetch=realFetch}}
+console.log('PASS: status checks are coalesced and failures are cached.');

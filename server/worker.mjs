@@ -1,11 +1,11 @@
 import { publicAuction, submitBid, ownerBids, reviewBid, requireOwner, paymentsEnabled, paymentStatus, stripeWebhook, testMode, isOwner } from './auction.mjs';
 import { sponsorship, visitMetrics, createVisit, visitEvent } from './analytics.mjs';
 import { RULES_VERSION } from '../public/rules.mjs';
-import { readJSON, limitRequest } from './security.mjs';
+import { readJSON, limitRequest, securityHeaders } from './security.mjs';
 import { Crossing, seededRandom } from '../public/engine.mjs';
 import { assets } from './assets.generated.mjs';
 const DAY=86400000, SOURCE='https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx';
-const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
+const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",...headers}});
 const db=env=>{if(!env.DB)throw new Error('Database unavailable');return env.DB};
 const validMode=m=>m==='run'||m==='block';
 function playerId(request){return request.headers.get('Cookie')?.match(/(?:^|;\s*)hormuz_player=([a-f0-9-]{36})(?:;|$)/)?.[1]??null}
@@ -24,9 +24,12 @@ export function classifyStatus(html,checkedAt=new Date().toISOString()){
  const disrupted=/stranded on vessels unable to exit the Strait of Hormuz/i.test(intro);
  return {status:disrupted?'disrupted':'unverified',label:disrupted?'Disrupted':'Unverified',detail:disrupted?'IMO reports ships stranded in the region and unable to exit the strait. This does not mean all traffic has stopped.':'The current official page does not provide a clear open/closed status.',source:'IMO',sourceUrl:SOURCE,checkedAt,sourceDate:text.match(/(\d{1,2} [A-Z][a-z]+ 202\d)\s+Seafarers/)?.[1]??null};
 }
-let statusCache=null;
-async function straitStatus(){if(statusCache&&Date.now()-statusCache.at<600000)return statusCache.value;try{const r=await fetch(SOURCE,{headers:{'User-Agent':'IsHormuzOpen/1.0 (official status summary)'},signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('Source unavailable');const value=classifyStatus(await r.text());statusCache={at:Date.now(),value};return value}catch{return {status:'unavailable',label:'Unavailable',detail:'The official source could not be checked. Last-known conditions are not shown as current.',source:'IMO',sourceUrl:SOURCE,checkedAt:null,sourceDate:null}}}
-export default {async fetch(request,env,ctx){const url=new URL(request.url);try{if(url.pathname==='/owner-login'&&request.method==='GET'){const target=url.searchParams.get('returnTo')==='/sponsor.html'?'/sponsor.html':'/sponsor-admin.html';const destination=env.AUTH_PROVIDER==='sites'?'/signin-with-chatgpt?return_to='+encodeURIComponent(target):target;return new Response(null,{status:302,headers:{Location:destination,'Cache-Control':'no-store'}})}if(url.pathname==='/api/stripe/webhook'&&request.method==='POST')return json(await stripeWebhook(db(env),env,request));if(url.pathname.startsWith('/api/'))await limitRequest(request,db(env));
+let statusCache=null,statusPending=null;
+const unavailableStatus=()=>({status:'unavailable',label:'Unavailable',detail:'The official source could not be checked. Last-known conditions are not shown as current.',source:'IMO',sourceUrl:SOURCE,checkedAt:null,sourceDate:null});
+async function fetchStatus(){try{const r=await fetch(SOURCE,{headers:{'User-Agent':'IsHormuzOpen/1.0 (official status summary)'},signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('Source unavailable');const value=classifyStatus(await r.text());statusCache={until:Date.now()+600000,value};return value}catch{const value=unavailableStatus();statusCache={until:Date.now()+60000,value};return value}}
+// One outbound check per isolate at a time; a failed check is remembered for a minute so bursts cannot hammer the source.
+async function straitStatus(){if(statusCache&&Date.now()<statusCache.until)return statusCache.value;if(!statusPending)statusPending=fetchStatus().finally(()=>{statusPending=null});return statusPending}
+export default {async fetch(request,env,ctx){const url=new URL(request.url);try{if(url.pathname==='/owner-login'&&request.method==='GET'){const target=url.searchParams.get('returnTo')==='/sponsor.html'?'/sponsor.html':'/sponsor-admin.html';return new Response(null,{status:302,headers:{Location:target,'Cache-Control':'no-store'}})}if(url.pathname==='/api/stripe/webhook'&&request.method==='POST')return json(await stripeWebhook(db(env),env,request));if(url.pathname.startsWith('/api/'))await limitRequest(request,db(env),env.RATE_LIMIT_SECRET);
  if(url.pathname==='/api/sponsor'&&request.method==='GET')return json(await sponsorship(Date.now(),db(env)));
  if(url.pathname==='/api/auction'&&request.method==='GET')return json({...await publicAuction(db(env),paymentsEnabled(env)&&(!testMode(env)||await isOwner(request,env,ctx)),testMode(env)&&await isOwner(request,env,ctx)?1:0),testAvailable:paymentsEnabled(env)&&!!testMode(env)});
  if(url.pathname==='/api/auction/admin'&&request.method==='GET'){await requireOwner(request,env,ctx);return json(await ownerBids(db(env)));}
@@ -66,5 +69,5 @@ export default {async fetch(request,env,ctx){const url=new URL(request.url);try{
   }
  }
  if(url.pathname.startsWith('/api/'))return json({error:'Not found.'},404);
- if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});const file=assets[url.pathname==='/'?'/index.html':url.pathname];if(!file)return new Response('Not found',{status:404});return new Response(request.method==='HEAD'?null:file.encoding==='base64'?Uint8Array.from(atob(file.body),c=>c.charCodeAt(0)):file.body,{headers:{'Content-Type':file.type,'Cache-Control':'public, max-age=60','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
+ if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});const file=assets[url.pathname==='/'?'/index.html':url.pathname];if(!file)return new Response('Not found',{status:404});return new Response(request.method==='HEAD'?null:file.encoding==='base64'?Uint8Array.from(atob(file.body),c=>c.charCodeAt(0)):file.body,{headers:{'Content-Type':file.type,'Cache-Control':'public, max-age=60',...securityHeaders(url)}});
  }catch(error){if(error.status)return json({error:error.message},error.status,error.status===429?{'Retry-After':'60'}:{});console.error('Game request failed:',error.message);return json({error:'Leaderboard unavailable. Please try again.'},503)}}};

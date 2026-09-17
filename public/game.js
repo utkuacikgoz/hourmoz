@@ -12,6 +12,8 @@ const $=id=>document.getElementById(id), game=new Crossing(), keys=new Set();
 let mode='run', best={run:0,block:0}, paused=false, bannerTime=0, shake=0, flash=0, clock=0, last=0, accumulator=0;
 try{best={...best,...JSON.parse(localStorage.getItem('hourmuz-best-v2')||'{}')}}catch{}
 const show=(id,on)=>$(id).classList.toggle('hidden',!on);
+// The WebGL fallback button is wired here so the page needs no inline script.
+$('reload').onclick=()=>location.reload();
 const graphics=new GraphicsBudget(),reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;const scene=new THREE.Scene();scene.background=new THREE.Color('#143e4b');scene.fog=new THREE.FogExp2('#3c6870',.0035);
 let renderer;
 try{renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;$('world').appendChild(renderer.domElement)}catch(e){show('load-error',true);throw e}
