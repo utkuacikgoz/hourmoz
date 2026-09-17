@@ -10,6 +10,9 @@
 body {
   margin: 0;
   overflow: hidden;
+  /* Explicit so an embedding host's own reset cannot recolour inherited text. */
+  color: #eaf5f1;
+  background: #062631;
 }
 button,
 a {
