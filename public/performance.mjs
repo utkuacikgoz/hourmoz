@@ -1,10 +1,12 @@
-// A short hitch (a garbage-collection pause, a shader compile, a notification) skips the simulation
-// for that frame instead of advancing it in one jump or interrupting the player. Only a real freeze
-// of more than a second pauses the game.
-export function frameTiming(milliseconds) {
+// An isolated hitch (a garbage-collection pause, a shader compile, a notification) skips the
+// simulation for that frame instead of advancing it in one jump or interrupting the player. When
+// slow frames follow each other the device is simply slow, so time advances by a capped step and
+// play stays possible. Only a real freeze of more than a second pauses the game.
+export function frameTiming(milliseconds, previousHitch = false) {
   const seconds = Math.max(0, milliseconds / 1000);
   const hitch = seconds > 0.25;
-  return {dt: hitch ? 0 : seconds || 1 / 60, hitch, stalled: seconds > 1};
+  const dt = hitch ? (previousHitch ? 0.25 : 0) : seconds || 1 / 60;
+  return {dt, hitch, stalled: seconds > 1};
 }
 export function steerVector(x, z, radius = 35) {
   const length = Math.hypot(x, z),

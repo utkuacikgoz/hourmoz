@@ -1175,10 +1175,12 @@ choose(
     ? new URLSearchParams(location.search).get('challenge')
     : mode,
 );
-let idleFrames = 0;
+let idleFrames = 0,
+  lastHitch = false;
 function frame(now) {
-  const timing = frameTiming(now - last),
+  const timing = frameTiming(now - last, lastHitch),
     realDt = timing.dt;
+  lastHitch = timing.hitch;
   last = now;
   if (timing.stalled && game.phase === 'play' && !paused) pause(true);
   if (game.phase === 'play' && !paused && graphics.update(realDt)) {

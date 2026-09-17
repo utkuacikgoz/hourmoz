@@ -10,6 +10,9 @@ A standalone naval arcade game with real Hormuz coastlines, a daily challenge, n
 - `npm test` — simulation, golden replay, API, security, analytics and sponsorship tests.
 - `npm run lint` and `npm run format` — ESLint and Prettier; CI runs both plus `npm run format:check`.
 - `npm run deploy:check` — bundles the Worker with Wrangler in dry-run mode to validate the deploy configuration without credentials.
+- `npm run test:browser` — after a build, runs the site and Worker in local workerd with a local D1 and drives a full round in headless Chromium (needs `npx playwright install chromium` once).
+
+Deployment to Cloudflare is described in `docs/cloudflare.md`; sponsorship setup in `docs/sponsorships.md`.
 
 Open the HTTP URL; opening an HTML file directly cannot run the modules or leaderboard API.
 
@@ -37,6 +40,6 @@ Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts
 
 ## Release checks
 
-GitHub runs lint, formatting, the simulation, API, replay export lifecycle and security checks, and a Wrangler dry run on every push and pull request. Sites deployment remains explicit. Bump `public/rules.mjs` whenever simulation rules change, then run `npm run golden:update`: the golden replay test pins a hash of the engine to the current rules version and fails when either changes alone. Older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
+GitHub runs lint, formatting, the simulation, API, replay export lifecycle and security checks, a Wrangler dry run, and the browser round-trip on every push and pull request. Sites deployment remains explicit. Bump `public/rules.mjs` whenever simulation rules change, then run `npm run golden:update`: the golden replay test pins a hash of the engine to the current rules version and fails when either changes alone. Older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
 
 Rate limits use Cloudflare’s supplied client address, hashed per minute and keyed with `RATE_LIMIT_SECRET` when set, plus global request budgets. A client over its own cap never consumes the global budget, so one address cannot lock everyone else out. When that header is unavailable, requests share the fallback bucket. Distributed bots remain possible; watch request volume and tune limits before a large campaign. No raw client addresses are stored.

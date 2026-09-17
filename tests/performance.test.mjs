@@ -8,6 +8,8 @@ assert.equal(frameTiming(400).dt, 0);
 assert.equal(frameTiming(400).hitch, true);
 assert.equal(frameTiming(400).stalled, false);
 assert.equal(frameTiming(1500).stalled, true);
+assert.equal(frameTiming(400, true).dt, 0.25);
+assert.equal(frameTiming(100, true).dt, 0.1);
 assert.equal(frameTiming(0).dt, 1 / 60);
 assert.deepEqual(steerVector(1, 1), {x: 0, z: 0});
 assert.deepEqual(steerVector(70, 0), {x: 1, z: 0});
