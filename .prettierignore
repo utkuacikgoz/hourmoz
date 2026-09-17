@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.local/
+.wrangler/
+drizzle/
+package-lock.json
+public/vendor/
+public/geography.mjs
+server/assets.generated.mjs
+*.html

@@ -1,13 +1,19 @@
 # Is Hormuz Open?
 
-A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ads.
+A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ad networks: the only placement is a single sponsor link sold openly on the sponsor page.
 
 ## Run
 
 - `npm install`
-- `npm run build`
-- `npm run dev` — opens an HTTP server at http://127.0.0.1:4173. Node 22 with experimental SQLite support is required for the local development server.
-- `npm test` — simulation and API tests.
+- `npm run build` — writes the deployable site to `dist/public` (hashed bundles under `/assets`) and the API-only Worker to `dist/server`.
+- `npm run dev` — opens an HTTP server at http://127.0.0.1:4173 that serves the unbundled files in `public/` with the production security headers.
+- `npm run preview` — builds, then runs the deployable site and Worker in local workerd with a local database at http://127.0.0.1:8788, the same shape as the Cloudflare deployment (no account needed). Ranked runs, leaderboards, stats and the sponsor page all work locally; payments need Stripe test keys in the environment. Node 22 with experimental SQLite support is required for the local development server.
+- `npm test` — simulation, golden replay, API, security, analytics and sponsorship tests.
+- `npm run lint` and `npm run format` — ESLint and Prettier; CI runs both plus `npm run format:check`.
+- `npm run deploy:check` — bundles the Worker with Wrangler in dry-run mode to validate the deploy configuration without credentials.
+- `npm run test:browser` — after a build, runs the site and Worker in local workerd with a local D1 and drives a full round in headless Chromium (needs `npx playwright install chromium` once).
+
+Deployment to Cloudflare is described in `docs/cloudflare.md`; sponsorship setup in `docs/sponsorships.md`.
 
 Open the HTTP URL; opening an HTML file directly cannot run the modules or leaderboard API.
 
@@ -31,10 +37,10 @@ The IMO status endpoint checks the current official Middle East page and caches 
 - Historical incident: [UK government report on Stena Impero, July 2019](https://www.gov.uk/government/news/iran-tanker-seizure-uk-government-response).
 - Current status: [IMO Middle East report](https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx).
 
-Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required.
+Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required. Adding `?graphics=low` to the game URL starts at the lowest quality level (no shadows, reduced resolution) for weak devices; the game also lowers quality on its own when frames stay slow.
 
 ## Release checks
 
-GitHub runs the simulation, API, replay export lifecycle and security checks on every push and pull request. Sites deployment remains explicit. Bump `public/rules.mjs` whenever simulation rules change; older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
+GitHub runs lint, formatting, the simulation, API, replay export lifecycle and security checks, a Wrangler dry run, and the browser round-trip on every push and pull request. Sites deployment remains explicit. Bump `public/rules.mjs` whenever simulation rules change, then run `npm run golden:update`: the golden replay test pins a hash of the engine to the current rules version and fails when either changes alone. Older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
 
-Rate limits use Cloudflare’s supplied client address hashed per minute, plus global request budgets. When that header is unavailable, requests share the fallback bucket. Distributed bots remain possible; watch request volume and tune limits before a large campaign. No raw client addresses are stored.
+Rate limits use Cloudflare’s supplied client address, hashed per minute and keyed with `RATE_LIMIT_SECRET` when set, plus global request budgets. A client over its own cap never consumes the global budget, so one address cannot lock everyone else out. When that header is unavailable, requests share the fallback bucket. Distributed bots remain possible; watch request volume and tune limits before a large campaign. No raw client addresses are stored.

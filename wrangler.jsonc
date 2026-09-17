@@ -5,9 +5,25 @@
   "compatibility_date": "2026-09-16",
   "workers_dev": true,
   "preview_urls": false,
-  "build": { "command": "npm run build" },
-  "vars": { "AUTH_PROVIDER": "cloudflare-access" },
-  // Set the verified deployed origin, owner email and Access audience in Worker settings.
-  // Add the D1 binding after creating the database in the selected Cloudflare account.
-  "d1_databases": []
+  "build": {"command": "npm run build"},
+  // The built site is served by Workers Static Assets. Only API paths and the owner login run the Worker.
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*", "/owner-login"],
+  },
+  // AUCTION_OWNER_EMAIL, CF_ACCESS_AUD and the Stripe keys are Worker secrets (wrangler secret put), never committed.
+  "vars": {"APP_ORIGIN": "https://ishormuzopen.fun"},
+  // Binds the domain on deploy; the zone must be active in this Cloudflare account first.
+  "routes": [{"pattern": "ishormuzopen.fun", "custom_domain": true}],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hourmuz",
+      "database_id": "365041da-91d0-47f4-8db9-9d6e7fe5af32",
+      "migrations_dir": "drizzle",
+    },
+  ],
 }
