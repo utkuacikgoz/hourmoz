@@ -13,7 +13,8 @@
     "golden:update": "node tests/golden.test.mjs --update",
     "deploy:check": "wrangler deploy --dry-run --outdir dist/dry-run",
     "db:generate": "drizzle-kit generate",
-    "test:browser": "node tests/browser.test.mjs"
+    "test:browser": "node tests/browser.test.mjs",
+    "preview": "npm run build && node scripts/preview.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

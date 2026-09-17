@@ -11,8 +11,11 @@ export async function api(path, options = {}) {
     headers: {'Content-Type': 'application/json', ...options.headers},
     signal: AbortSignal.timeout(12000),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Could not connect. Try again.');
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {}
+  if (!response.ok || !data) throw new Error(data?.error || 'Could not connect. Try again.');
   return data;
 }
 export async function beginRanked(mode) {

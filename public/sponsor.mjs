@@ -9,8 +9,11 @@ async function api(path, data) {
     body: data ? JSON.stringify(data) : undefined,
     signal: AbortSignal.timeout(20000),
   });
-  const value = await r.json();
-  if (!r.ok) throw new Error(value.error || 'Could not connect.');
+  let value = null;
+  try {
+    value = await r.json();
+  } catch {}
+  if (!r.ok || !value) throw new Error(value?.error || 'Could not connect.');
   return value;
 }
 async function refresh() {
