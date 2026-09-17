@@ -3,7 +3,10 @@ import {readFile} from 'node:fs/promises';
 import {localDB} from './local-db.mjs';
 import {securityHeaders} from '../server/security.mjs';
 import worker from '../dist/server/index.js';
+// Optional sponsorship settings from the shell, so the tip link and prices can be checked locally.
 const env = {DB: localDB('.local/game.sqlite')};
+for (const name of ['TIP_URL', 'SPONSOR_DAY_PRICE', 'SPONSOR_WEEK_PRICE'])
+  if (process.env[name]) env[name] = process.env[name];
 const types = {
   css: 'text/css',
   js: 'text/javascript',

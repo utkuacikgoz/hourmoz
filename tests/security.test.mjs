@@ -58,14 +58,14 @@ for (let i = 0; i < 200; i++) {
 assert.equal(rejected, 20);
 await from('203.0.113.10');
 assert.equal(shared.sqlite.prepare("SELECT count FROM rate_limits WHERE key = 'global:api'").get().count, 181);
-for (let i = 0; i < 6; i++) await from('203.0.113.11', '/api/auction/bids', 'POST');
-await assert.rejects(() => from('203.0.113.11', '/api/auction/bids', 'POST'), {status: 429});
+for (let i = 0; i < 6; i++) await from('203.0.113.11', '/api/sponsorship/bookings', 'POST');
+await assert.rejects(() => from('203.0.113.11', '/api/sponsorship/bookings', 'POST'), {status: 429});
 await from('203.0.113.11');
 const before = shared.sqlite.prepare('SELECT COUNT(*) AS count FROM rate_limits').get().count;
 await from('203.0.113.12', undefined, undefined, 'keyed-secret');
 assert.equal(shared.sqlite.prepare('SELECT COUNT(*) AS count FROM rate_limits').get().count, before + 1);
 console.log(
-  'PASS: client caps are checked before the shared budget, bids are counted separately, keyed hashing works.',
+  'PASS: client caps are checked before the shared budget, bookings are counted separately, keyed hashing works.',
 );
 
 // Every page and API response carries the security headers; HSTS only over HTTPS.

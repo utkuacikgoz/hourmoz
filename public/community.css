@@ -97,6 +97,59 @@ input:focus-visible {
   font-size: 26px;
   color: #ffc07a;
 }
+.slots {
+  border: 0;
+  padding: 0;
+  margin: 20px 0 0;
+}
+.slots legend {
+  font-size: 14px;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #36555e;
+  padding: 12px 14px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.slot:has(input:checked) {
+  border-color: #ffc07a;
+}
+.slot input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+}
+.slot span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.slot small {
+  color: #9ebbbc;
+  font-size: 12px;
+}
+.slot strong {
+  color: #ffc07a;
+  font-size: 22px;
+}
+.availability {
+  font-size: 13px;
+  color: #9ebbbc;
+  margin: 8px 0 0;
+}
+.availability[data-state='open'] {
+  color: #9ee2c2;
+}
+.availability[data-state='taken'] {
+  color: #ff9a8a;
+}
 .check {
   display: flex;
   gap: 12px;
@@ -133,14 +186,14 @@ details {
   color: #9ebbbc;
   line-height: 1.7;
 }
-.bid-row {
+.booking-row {
   display: flex;
   justify-content: space-between;
   gap: 20px;
   padding: 16px 0;
   border-bottom: 1px solid #36555e;
 }
-.bid-row strong {
+.booking-row strong {
   color: #ffc07a;
 }
 #message,

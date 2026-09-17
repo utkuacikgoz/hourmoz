@@ -103,7 +103,7 @@ console.log(
 let metrics = await (await worker.fetch(req('/api/metrics'), env)).json();
 assert.equal(metrics.starts, 1);
 assert.equal(metrics.players, 1);
-for (const event of ['complete', 'complete', 'share', 'card'])
+for (const event of ['complete', 'complete', 'share'])
   assert.equal((await worker.fetch(req('/api/events', {runId: session.id, event}, cookie), env)).status, 200);
 assert.equal(
   (
@@ -127,7 +127,6 @@ assert.equal(metrics.replays, 1);
 assert.equal(metrics.returningPlayers, 1);
 assert.equal(metrics.completed, 1);
 assert.equal(metrics.shared, 1);
-assert.equal(metrics.cards, 1);
 assert(!JSON.stringify(metrics).includes(session.id));
 assert(!JSON.stringify(metrics).includes('Captain Test'));
 console.log('PASS: launch metrics, duplicate event protection, ownership, returning players, aggregate-only output.');

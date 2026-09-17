@@ -1,5 +1,4 @@
-import {paidSponsor} from './auction.mjs';
-import config from '../public/sponsors.json' with {type: 'json'};
+import {paidSponsor, tipUrl} from './sponsors.mjs';
 const DAY = 86400000;
 export const sources = new Set([
   'direct',
@@ -14,29 +13,9 @@ export const sources = new Set([
   'search',
   'other',
 ]);
-export async function sponsorship(now = Date.now(), db = null) {
-  const day = new Date(now).toISOString().slice(0, 10);
-  const active = config.schedule.find(
-    s =>
-      s.day === day &&
-      /^[a-z0-9-]{1,60}$/.test(s.id) &&
-      typeof s.name === 'string' &&
-      s.name.length <= 60 &&
-      safeLink(s.url),
-  );
-  return {
-    bookingUrl: '/sponsor',
-    sponsor:
-      (db ? await paidSponsor(db) : null) ?? (active ? {id: active.id, name: active.name, url: active.url, day} : null),
-  };
-}
-function safeLink(value, mail = false) {
-  try {
-    const u = new URL(value);
-    return (u.protocol === 'https:' || (mail && u.protocol === 'mailto:')) && !u.username && !u.password ? value : null;
-  } catch {
-    return null;
-  }
+// What the game shows: today's paid sponsor, where to book a day, and the optional tip link.
+export async function sponsorship(now = Date.now(), db = null, env = null) {
+  return {bookingUrl: '/sponsor', tipUrl: tipUrl(env ?? {}), sponsor: db ? await paidSponsor(db, 0, now) : null};
 }
 export async function visitMetrics(db, since) {
   const totals = await db
@@ -54,7 +33,7 @@ export async function visitMetrics(db, since) {
     .all();
   const campaigns = await db
     .prepare(
-      'SELECT e.sponsor_id AS sponsor, MAX(b.name) AS name, SUM(e.viewed) AS views, SUM(e.clicked) AS clicks FROM sponsor_events e JOIN visits v ON v.id = e.visit_id LEFT JOIN sponsor_bids b ON b.id = e.sponsor_id WHERE v.created_at >= ? GROUP BY e.sponsor_id ORDER BY views DESC',
+      'SELECT e.sponsor_id AS sponsor, MAX(b.name) AS name, SUM(e.viewed) AS views, SUM(e.clicked) AS clicks FROM sponsor_events e JOIN visits v ON v.id = e.visit_id LEFT JOIN sponsor_slots b ON b.id = e.sponsor_id WHERE v.created_at >= ? GROUP BY e.sponsor_id ORDER BY views DESC',
     )
     .bind(since)
     .all();

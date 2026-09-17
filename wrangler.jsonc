@@ -15,6 +15,8 @@
     "run_worker_first": ["/api/*", "/owner-login"],
   },
   // AUCTION_OWNER_EMAIL, CF_ACCESS_AUD and the Stripe keys are Worker secrets (wrangler secret put), never committed.
+  // Optional here: TIP_URL (a Stripe Payment Link shown as "Tip the captain" on the results screen),
+  // SPONSOR_DAY_PRICE and SPONSOR_WEEK_PRICE in whole cents (defaults 1500 and 5900).
   "vars": {"APP_ORIGIN": "https://ishormuzopen.fun"},
   // Binds the domain on deploy; the zone must be active in this Cloudflare account first.
   "routes": [{"pattern": "ishormuzopen.fun", "custom_domain": true}],

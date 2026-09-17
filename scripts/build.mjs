@@ -1,4 +1,3 @@
-import './validate-sponsors.mjs';
 import {readFile, writeFile, mkdir, readdir, cp, rm, stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {build} from 'esbuild';
@@ -65,9 +64,8 @@ const refs = {
   '/stats.mjs': bundles['stats.mjs'],
   '/sponsor-admin.mjs': bundles['sponsor-admin.mjs'],
 };
-const skipped = new Set(['sponsors.json']);
 for (const entry of await readdir('public', {withFileTypes: true})) {
-  if (entry.isDirectory() || /\.(js|mjs|css)$/.test(entry.name) || skipped.has(entry.name)) continue;
+  if (entry.isDirectory() || /\.(js|mjs|css)$/.test(entry.name)) continue;
   if (entry.name.endsWith('.html')) {
     let html = await readFile('public/' + entry.name, 'utf8');
     for (const [from, to] of Object.entries(refs)) html = html.replaceAll(`"${from}"`, `"${to}"`);

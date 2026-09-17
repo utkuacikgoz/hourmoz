@@ -1,11 +1,10 @@
 import {frameTiming, steerVector, GraphicsBudget} from './performance.mjs';
 import * as THREE from './vendor/three.module.js';
-import {RunClip} from './replay-clip.mjs';
-import {GameAudio} from './audio.mjs';
 import {Crossing, clamp} from './engine.mjs';
 import {coastlines} from './geography.mjs';
 import {project, course, worldPoint, logicalPoint} from './navigation.mjs';
 import {beginRanked, finishCompetition, setupCompetition, setCompetitionMode, loadGhost} from './competition.mjs';
+import {sponsorState} from './analytics.mjs';
 let startError = null;
 let ghostData = null,
   ghostIndex = 0,
@@ -195,6 +194,69 @@ function ship(type) {
   return g;
 }
 const templates = {player: ship('player'), escort: ship('escort'), tanker: ship('tanker')};
+// The sponsor's name is painted across the tank tops of every tanker. All clones share one canvas
+// texture, so repainting it renames the whole fleet at once.
+const decalCanvas = document.createElement('canvas');
+decalCanvas.width = 1024;
+decalCanvas.height = 320;
+const decalTexture = new THREE.CanvasTexture(decalCanvas);
+decalTexture.colorSpace = THREE.SRGBColorSpace;
+const decalMaterial = new THREE.MeshBasicMaterial({
+  map: decalTexture,
+  transparent: true,
+  depthWrite: false,
+  toneMapped: false,
+  visible: false,
+});
+// Long names are split over two lines at a word break so the letters stay as tall as possible.
+function decalLines(text) {
+  if (text.length <= 9 || !text.includes(' ')) return [text];
+  const words = text.split(' ');
+  let best = null;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' '),
+      b = words.slice(i).join(' ');
+    if (!best || Math.abs(a.length - b.length) < Math.abs(best[0].length - best[1].length)) best = [a, b];
+  }
+  return best;
+}
+function paintSponsor(name) {
+  const ctx = decalCanvas.getContext('2d');
+  ctx.clearRect(0, 0, decalCanvas.width, decalCanvas.height);
+  decalMaterial.visible = !!name;
+  if (name) {
+    const lines = decalLines(String(name).toUpperCase().replace(/\s+/g, ' ').trim()),
+      font = size => `800 ${size}px "Barlow Condensed", "Arial Narrow", Impact, sans-serif`;
+    let size = lines.length === 1 ? 270 : 150;
+    ctx.font = font(size);
+    const width = Math.max(...lines.map(line => ctx.measureText(line).width));
+    if (width > 990) size = Math.max(90, Math.floor((size * 990) / width));
+    ctx.font = font(size);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size / 14;
+    lines.forEach((line, i) => {
+      const y = lines.length === 1 ? 165 : 88 + i * 150;
+      ctx.strokeStyle = '#3a1210';
+      ctx.strokeText(line, 512, y, 1000);
+      ctx.fillStyle = '#fff4dc';
+      ctx.fillText(line, 512, y, 1000);
+    });
+  }
+  decalTexture.needsUpdate = true;
+}
+{
+  // Covers the tank tops from the bow tank to the bridge, full beam of the tanks.
+  const decal = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 3), decalMaterial);
+  decal.position.set(0, 2.8, -1.25);
+  // Flat on the deck along the ship. Each tanker flips it as it turns so the letters never hang upside down.
+  decal.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+  decal.renderOrder = 1;
+  templates.tanker.add(decal);
+}
+document.addEventListener('sponsorchange', e => paintSponsor(e.detail?.name));
+document.fonts?.ready.then(() => paintSponsor(sponsorState.sponsor?.name));
 const player = templates.player.clone();
 scene.add(player);
 const ring = new THREE.Mesh(
@@ -286,6 +348,7 @@ function entityObject(e) {
       health.position.set(0, 6, 0);
       g.add(health);
       g.userData.health = health;
+      g.userData.decal = g.children.find(child => child.material === decalMaterial);
     }
   } else {
     g = new THREE.Group();
@@ -479,8 +542,6 @@ for (let i = 0; i < 4; i++) {
 reticle.position.y = 0.3;
 reticle.visible = false;
 scene.add(reticle);
-const sound = new GameAudio();
-const replayClip = new RunClip();
 function banner(kicker, title, duration = 2.3) {
   $('event-kicker').textContent = kicker;
   $('event-title').textContent = title;
@@ -512,13 +573,10 @@ function choose(m) {
     b.classList.toggle('active', b.dataset.mode === m);
     b.setAttribute('aria-pressed', String(b.dataset.mode === m));
   });
-  $('space-hint').textContent = m === 'run' ? 'DECOY' : 'FIRE';
   $('best-menu').textContent = `BEST ${(best[m] || 0).toLocaleString()}`;
-  sound.play('click');
 }
 async function start() {
   if (starting) return;
-  replayClip.reset();
   domCache.clear();
   starting = true;
   $('deploy').disabled = $('retry').disabled = true;
@@ -556,11 +614,9 @@ async function start() {
       3,
     );
   else banner('UNRANKED PRACTICE', startError || 'Leaderboard unavailable', 4);
-  sound.play('start');
   document.activeElement?.blur();
 }
 function toMenu() {
-  replayClip.reset();
   document.body.classList.remove('in-game');
   game.phase = 'menu';
   game.entities = [];
@@ -581,13 +637,11 @@ function pause(force) {
   joystick.x = joystick.z = 0;
   show('pause-screen', paused);
   if (paused) {
-    sound.tick(false, false, 0);
     $('stick').style.transform = '';
     $('resume').focus();
   }
 }
 function end() {
-  replayClip.finish();
   finishCompetition(
     {mode, score: game.score, session: ranked, reason: startError, records, ticks, name: null},
     scoreHistory,
@@ -618,7 +672,6 @@ function end() {
       localStorage.setItem('hourmuz-best-v2', JSON.stringify(best));
     } catch {}
   }
-  sound.play(game.win ? 'complete' : 'gameover');
   // Focus PLAY AGAIN only after a beat, so a key still being hammered from the round cannot skip the results.
   setTimeout(() => {
     if (game.phase === 'end' && $('end-screen').offsetParent !== null) $('retry').focus();
@@ -626,12 +679,9 @@ function end() {
 }
 function handleEvents() {
   for (const e of game.events) {
-    if (e.type === 'post' || e.type === 'checkpoint') sound.play('warning');
-    if (e.type === 'payoff') sound.play('repair');
     if (e.type === 'difficulty' && e.stage > 1) banner(`LEVEL ${e.stage + 1}`, 'More danger ahead', 1.6);
     if (e.type === 'finale') {
       banner(mode === 'run' ? 'EXIT AHEAD' : 'FINAL 15 SECONDS', mode === 'run' ? 'Get through' : 'Hold the strait', 2);
-      sound.play('warning');
     }
     if (e.type === 'nearMiss') {
       const label = $('close-call');
@@ -639,20 +689,16 @@ function handleEvents() {
       label.classList.remove('pop');
       void label.offsetWidth;
       label.classList.add('pop');
-      sound.play('nearMiss');
       for (let i = 0; i < 12; i++)
         particle(e.x, 1, e.z, (Math.random() - 0.5) * 9, 2, (Math.random() - 0.5) * 9, 0.5, 1.3, '#c9ffe3');
     }
     if (e.type === 'fire') {
       particle(e.x, 2.2, e.z - 4, 0, 2, -20, 0.15, 3, '#ffd698');
-      sound.play('gun', e.x / 40);
     }
-    if (e.type === 'enemyfire') sound.play('gun', e.x / 40);
     if (e.type === 'hit') {
       burst(e.x, e.z);
       shake = 1;
       flash = 0.7;
-      sound.play('hit', e.x / 40);
     }
     if (e.type === 'impact') {
       for (let i = 0; i < 8; i++)
@@ -667,12 +713,10 @@ function handleEvents() {
           1.6,
           '#ffd79a',
         );
-      sound.texture(0.06, 0.11, 1800, e.x / 40);
     }
     if (e.type === 'destroy') {
       burst(e.x, e.z, e.big);
       shake = e.big ? 0.8 : 0.3;
-      sound.play(e.big ? 'explosion' : 'hit', e.x / 40);
     }
     if (e.type === 'repair') {
       for (let i = 0; i < 16; i++)
@@ -688,7 +732,6 @@ function handleEvents() {
           '#bcffce',
         );
       banner('REPAIR', 'Health restored', 1.2);
-      sound.play('repair');
     }
     if (e.type === 'decoy') {
       banner('DECOY ACTIVE', 'Missiles pushed away', 1.5);
@@ -698,12 +741,10 @@ function handleEvents() {
         const a = (i / 35) * Math.PI * 2;
         particle(e.x, 1, e.z, Math.sin(a) * 14, 1, Math.cos(a) * 14, 2, 2, '#edcc89');
       }
-      sound.play('decoy');
     }
     if (e.type === 'escaped') {
       banner('−16 HEALTH', 'Tanker escaped', 1.7);
       flash = 0.2;
-      sound.play('warning');
     }
     if (e.type === 'sector') banner(`SECTOR ${e.sector - 1} CLEARED`, `${105 - Math.floor(game.time)} seconds left`, 2);
     if (e.type === 'end') end();
@@ -817,7 +858,6 @@ $('back-menu').onclick = toMenu;
 $('quit').onclick = toMenu;
 $('pause').onclick = () => pause();
 $('resume').onclick = () => pause(false);
-$('sound').onclick = () => sound.toggle();
 $('fullscreen').onclick = async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
@@ -1033,6 +1073,12 @@ function sync(dt) {
     else if (e.type === 'escort' || e.type === 'tanker') {
       m.rotation.z = Math.sin(clock + e.id) * 0.015;
       if (m.userData.health) m.userData.health.scale.x = Math.max(0.05, e.hp / 4);
+      if (m.userData.decal) {
+        // Keep the deck lettering leaning towards upright on screen, with slack so it never flickers.
+        const lean = Math.sin(m.rotation.y);
+        if (lean > 0.2) m.userData.decal.rotation.z = -Math.PI / 2;
+        else if (lean < -0.2) m.userData.decal.rotation.z = Math.PI / 2;
+      }
       if (dt > 0 && Math.random() < dt * 25) {
         const width = e.type === 'tanker' ? 2 : 1;
         particle(
@@ -1191,7 +1237,6 @@ function frame(now) {
   if (game.phase === 'play' && !paused && graphics.update(realDt)) {
     renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatio));
     renderer.shadowMap.enabled = graphics.level < 2;
-    replayClip.interval = graphics.level >= 2 ? 0.4 : 0.2;
     resize();
   }
   const active = game.phase === 'play' && !paused,
@@ -1243,9 +1288,7 @@ function frame(now) {
   if (bannerTime <= 0) $('event-banner').classList.remove('show');
   updateHUD();
   if (game.phase !== 'menu') drawRadar();
-  sound.tick(game.phase === 'play' && !paused, game.boosting, game.difficulty.stage);
   renderer.render(scene, camera);
-  if (active) replayClip.capture(renderer.domElement, game.time, game.score, game.phase === 'end');
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

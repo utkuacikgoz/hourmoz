@@ -65,12 +65,14 @@ export async function trackVisit(event, sponsorId) {
 }
 let sponsorKey = null,
   sponsorCleanup = [];
+// The sponsor currently shown, for the game's tanker decals; 'sponsorchange' fires whenever it changes.
+export const sponsorState = {sponsor: null};
 async function setupSponsors() {
   try {
     const r = await fetch('/api/sponsor', {signal: AbortSignal.timeout(5000)});
     if (!r.ok) return;
-    const {sponsor, bookingUrl} = await r.json();
-    const key = JSON.stringify([sponsor, bookingUrl]);
+    const {sponsor, bookingUrl, tipUrl} = await r.json();
+    const key = JSON.stringify([sponsor, bookingUrl, tipUrl]);
     if (key === sponsorKey) return;
     sponsorKey = key;
     sponsorCleanup.forEach(fn => fn());
@@ -80,7 +82,7 @@ async function setupSponsors() {
       if (sponsor) {
         const label = document.createElement('span'),
           link = document.createElement('a');
-        label.textContent = 'SPONSOR';
+        label.textContent = container.dataset.sponsor === 'results' ? 'DELIVERED BY' : 'TODAY’S SPONSOR';
         link.textContent = sponsor.name;
         link.href = sponsor.url;
         link.target = '_blank';
@@ -119,7 +121,7 @@ async function setupSponsors() {
       if (bookingUrl) {
         const link = document.createElement('a');
         link.className = 'sponsor-booking';
-        link.textContent = 'Take the sponsor spot';
+        link.textContent = sponsor ? 'Sponsor a day' : 'Put your name on the tankers';
         link.href = bookingUrl;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
@@ -128,6 +130,13 @@ async function setupSponsors() {
       }
       container.hidden = !sponsor && !bookingUrl;
     }
+    const tip = document.getElementById('tip-link');
+    if (tip) {
+      if (tipUrl) tip.href = tipUrl;
+      tip.hidden = !tipUrl;
+    }
+    sponsorState.sponsor = sponsor;
+    document.dispatchEvent(new CustomEvent('sponsorchange', {detail: sponsor}));
   } catch {}
 }
 if (browser) {

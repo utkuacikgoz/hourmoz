@@ -5,8 +5,8 @@ import {fileURLToPath} from 'node:url';
 
 // Runs the deployable output (dist/public and dist/server) in local workerd with a local D1
 // database, the same shape as production. Data persists in .local/preview between runs.
-// Optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, AUCTION_OWNER_EMAIL and CF_ACCESS_AUD from
-// the environment are passed through for local payment checks.
+// Optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, AUCTION_OWNER_EMAIL, CF_ACCESS_AUD, TIP_URL,
+// SPONSOR_DAY_PRICE and SPONSOR_WEEK_PRICE from the environment are passed through for local checks.
 const root = fileURLToPath(new URL('..', import.meta.url));
 if (!existsSync(join(root, 'dist/server/index.js'))) {
   console.error('Run `npm run build` first.');
@@ -17,7 +17,15 @@ const origin = `http://127.0.0.1:${port}`;
 const state = join(root, '.local', 'preview');
 mkdirSync(state, {recursive: true});
 const vars = {APP_ORIGIN: origin};
-for (const name of ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'AUCTION_OWNER_EMAIL', 'CF_ACCESS_AUD'])
+for (const name of [
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'AUCTION_OWNER_EMAIL',
+  'CF_ACCESS_AUD',
+  'TIP_URL',
+  'SPONSOR_DAY_PRICE',
+  'SPONSOR_WEEK_PRICE',
+])
   if (process.env[name]) vars[name] = process.env[name];
 const config = join(state, 'wrangler.json');
 writeFileSync(
