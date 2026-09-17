@@ -10,6 +10,8 @@ The repository now has a Wrangler configuration for a direct Worker deployment. 
 6. Before live launch, narrow Access protection to `/sponsor-admin` and `/api/auction/admin` so sponsor checkout is public. Keep the audience configured. Switch to live Stripe keys and the live endpoint signing secret only after real test-mode verification. No live payment is authorized by merely running tests.
 7. After the domain is owned and active in Cloudflare, bind it as a Worker Custom Domain. Update APP_ORIGIN and Stripe webhook URLs to that verified domain. Build with `SITE_ORIGIN=https://your.domain npm run build` (or set `SITE_ORIGIN` in the deploy shell) so the social-card metadata points at the verified domain. Consider disabling workers.dev once the domain and Access policy work.
 
+Plan sizing: verifying a ranked score replays the whole round on the server and takes roughly 10 to 20 ms of CPU, so check that against the per-request CPU limit of the chosen Workers plan (the free plan allows less). Rate limiting and presence check-ins write a few D1 rows per minute for every open game tab; cached reads cost nothing, but budget D1 writes for the expected number of concurrent players.
+
 Current data remains on the original managed D1 database. A fresh Cloudflare D1 database does not transfer leaderboards, analytics or sponsor records. Export/import requires a separate data migration before cutting over if that history is needed.
 
 Owner Access must be verified on the deployed Worker before payments are enabled. Missing runtime Access identity fails closed. No Cloudflare account, database, route, DNS or billing changes have been made by preparing these files.
