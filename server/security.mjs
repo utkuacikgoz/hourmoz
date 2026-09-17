@@ -41,11 +41,11 @@ export async function readJSON(request, maxBytes = 650000) {
 
 // Per-minute budgets. A client is one Cloudflare-supplied address. The client cap is checked
 // first, so a client that is over its own cap never consumes the shared budget and one address
-// cannot lock everyone else out. Bids and replay verification have their own counters.
+// cannot lock everyone else out. Sponsor bookings and replay verification have their own counters.
 const LIMITS = {
   api: {client: 180, global: 3000},
   verify: {client: 16, global: 300},
-  bid: {client: 6, global: 60},
+  booking: {client: 6, global: 60},
 };
 const VERIFY_PATHS = new Set(['/api/scores', '/api/challenge']);
 let cleanedBucket = -1;
@@ -54,7 +54,7 @@ export function requestKind(request) {
   if (request.method !== 'POST') return 'api';
   const path = new URL(request.url).pathname;
   if (VERIFY_PATHS.has(path)) return 'verify';
-  if (path === '/api/auction/bids') return 'bid';
+  if (path === '/api/sponsorship/bookings') return 'booking';
   return 'api';
 }
 

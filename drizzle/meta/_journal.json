@@ -71,6 +71,20 @@
       "when": 1789461934081,
       "tag": "0009_square_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789675229939,
+      "tag": "0010_fresh_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789675230778,
+      "tag": "0011_hard_kylun",
+      "breakpoints": true
     }
   ]
 }

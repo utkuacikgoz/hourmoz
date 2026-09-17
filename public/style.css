@@ -213,23 +213,6 @@ h1 > span {
   background: #ffcf93;
   transform: translateY(-1px);
 }
-.brief-controls {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-top: 17px;
-  font-size: 10px;
-  letter-spacing: 0.7px;
-  color: #9ab2b3;
-}
-.brief-controls span {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-.brief-controls b {
-  font-weight: 500;
-}
 kbd {
   font: inherit;
   font-size: 10px;
@@ -237,9 +220,6 @@ kbd {
   padding: 3px 4px;
   border-radius: 2px;
   color: #d4ddd3;
-}
-.touch-hint {
-  display: none;
 }
 .menu-bottom {
   position: absolute;
@@ -506,12 +486,6 @@ kbd {
 .ghost:hover {
   color: var(--gold);
 }
-.panel-hint {
-  color: #7e9ba1;
-  font-size: 11px;
-  line-height: 1.9;
-  margin: 20px 0 0;
-}
 .end-score {
   border-top: 1px solid #9cb7b233;
   padding-top: 20px;
@@ -664,10 +638,6 @@ kbd {
   .mode > span {
     font-size: 10px;
   }
-  .brief-controls {
-    font-size: 10px;
-    gap: 10px;
-  }
   .menu-bottom {
     left: 26px;
     right: 26px;
@@ -740,16 +710,6 @@ kbd {
 @media (pointer: coarse) {
   #touch-controls:not(.hidden) {
     display: flex;
-  }
-  .brief-controls {
-    display: none;
-  }
-  .touch-hint {
-    display: block;
-    text-align: center;
-    font-size: 11px;
-    color: #95b2b5;
-    margin: 16px 0 0;
   }
   .bottom-hud {
     bottom: 164px;
@@ -845,12 +805,6 @@ kbd {
 }
 .menu-bottom {
   bottom: 22px;
-}
-.brief-controls {
-  font-size: 10px;
-}
-.brief-controls kbd {
-  font-size: 10px;
 }
 .utility #show-leaderboard {
   color: var(--gold);
@@ -1368,13 +1322,6 @@ body.in-game #incident-note {
   background: #ffcc92;
   box-shadow: 0 4px 25px #ffad432a;
 }
-.brief-controls {
-  margin-top: 13px;
-  gap: 15px;
-}
-.touch-hint {
-  margin: 12px 0 0;
-}
 .menu-bottom {
   bottom: 19px;
 }
@@ -1491,6 +1438,14 @@ body.in-game #incident-note {
   font-size: 11px;
   color: #8eaaa8;
 }
+.result-links a.ghost {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--gold);
+}
+.result-links a.ghost[hidden] {
+  display: none;
+}
 .compact-board {
   margin: 11px 0 0;
 }
@@ -1509,9 +1464,6 @@ body.in-game #incident-note {
 }
 .utility button:hover {
   background: #385147;
-}
-.panel .panel-hint {
-  margin-top: 14px;
 }
 @keyframes menu-arrive {
   from {
@@ -1596,10 +1548,6 @@ body.in-game #incident-note {
   .result-links {
     margin-top: 6px;
   }
-  .brief-controls {
-    gap: 9px;
-    font-size: 10px;
-  }
   #run-chart {
     height: 23px;
   }
@@ -1618,9 +1566,6 @@ body.in-game #incident-note {
   }
   .mode strong {
     font-size: 25px;
-  }
-  .brief-controls {
-    margin-top: 9px;
   }
   .menu-bottom {
     bottom: 14px;
@@ -1824,43 +1769,6 @@ body.in-game #incident-note {
   }
 }
 
-#clip-dialog {
-  width: min(760px, 94vw);
-  border: 1px solid #7a9e97;
-  background: #062631;
-  color: #eaf5f1;
-  padding: 36px 18px 18px;
-  border-radius: 5px;
-}
-#clip-dialog::backdrop {
-  background: #001821dd;
-}
-#clip-video {
-  display: block;
-  width: 100%;
-  max-height: 65vh;
-}
-#clip-video[hidden] {
-  display: none;
-}
-#clip-status {
-  font-size: 12px;
-  color: #a6c2c3;
-}
-#download-clip {
-  display: inline-block;
-  background: #ffc07a;
-  color: #062631;
-  padding: 10px 20px;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 700;
-}
-#download-clip[hidden],
-#watch-clip[hidden] {
-  display: none;
-}
-
 /* Keep temporary events away from the route and respect phone safe areas. */
 #satire-event {
   top: auto;
@@ -2027,8 +1935,6 @@ body.in-game #incident-note {
 #ghost-score,
 .menu-bottom,
 #incident-note,
-.brief-controls,
-.touch-hint,
 .geo-label {
   text-shadow: 0 1px 8px #03212cd0;
 }

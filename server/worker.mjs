@@ -1,15 +1,15 @@
 import {
-  publicAuction,
-  submitBid,
-  ownerBids,
-  reviewBid,
+  publicSponsorship,
+  submitBooking,
+  ownerBookings,
+  reviewBooking,
   requireOwner,
   paymentsEnabled,
   paymentStatus,
   stripeWebhook,
   testMode,
   isOwner,
-} from './auction.mjs';
+} from './sponsors.mjs';
 import {sponsorship, visitMetrics, createVisit, visitEvent} from './analytics.mjs';
 import {RULES_VERSION} from '../public/rules.mjs';
 import {readJSON, limitRequest, securityHeaders} from './security.mjs';
@@ -161,7 +161,7 @@ async function straitStatus() {
 // Short-lived per-isolate cache for frequently polled reads. Entries are keyed by route and skipped
 // when a request carries Cache-Control: no-cache.
 const cache = new Map();
-const CACHEABLE = new Set(['/api/sponsor', '/api/auction', '/api/metrics', '/api/leaderboard', '/api/status']);
+const CACHEABLE = new Set(['/api/sponsor', '/api/sponsorship', '/api/metrics', '/api/leaderboard', '/api/status']);
 function fromCache(key) {
   const entry = cache.get(key);
   return entry && Date.now() < entry.until ? entry.value : undefined;
@@ -186,7 +186,7 @@ async function metrics(database) {
   const since = Date.now() - 30 * DAY;
   const totals = await database
     .prepare(
-      'SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(card),0) AS cards, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?',
+      'SELECT COUNT(*) AS starts, COUNT(DISTINCT player_id) AS players, COALESCE(SUM(completed),0) AS completed, COALESCE(SUM(shared),0) AS shared, COALESCE(SUM(referred),0) AS challengeStarts, COALESCE(SUM(CASE WHEN referred = 1 THEN completed ELSE 0 END),0) AS challengeCompletions, COALESCE(SUM(CASE WHEN referred = 1 THEN shared ELSE 0 END),0) AS challengeReshares FROM runs WHERE tracked = 1 AND created_at >= ?',
     )
     .bind(since)
     .first();
@@ -233,7 +233,7 @@ export default {
       }
       if (url.pathname === '/api/stripe/webhook' && request.method === 'POST') {
         const result = await stripeWebhook(db(env), env, request);
-        forget('auction:');
+        forget('sponsorship:');
         forget('sponsor');
         return json(result);
       }
@@ -256,16 +256,18 @@ export default {
       };
       if (url.pathname.startsWith('/api/') && !(request.method === 'GET' && CACHEABLE.has(url.pathname))) await limit();
       if (url.pathname === '/api/sponsor' && request.method === 'GET')
-        return json(await cachedValue('sponsor', 15000, () => sponsorship(Date.now(), db(env))), 200, {
+        return json(await cachedValue('sponsor', 15000, () => sponsorship(Date.now(), db(env), env)), 200, {
           'Cache-Control': 'public, max-age=15',
         });
-      if (url.pathname === '/api/auction' && request.method === 'GET') {
+      if (url.pathname === '/api/sponsorship' && request.method === 'GET') {
         const owner = paymentsEnabled(env) && testMode(env) ? await isOwner(request, env, ctx) : false;
         const testing = testMode(env) && owner ? 1 : 0;
-        const auction = await cachedValue('auction:' + testing, 10000, () => publicAuction(db(env), true, testing));
+        const state = await cachedValue('sponsorship:' + testing, 10000, () =>
+          publicSponsorship(db(env), env, testing),
+        );
         return json(
           {
-            ...auction,
+            ...state,
             enabled: paymentsEnabled(env) && (!testMode(env) || owner),
             testAvailable: paymentsEnabled(env) && !!testMode(env),
           },
@@ -273,9 +275,9 @@ export default {
           {'Cache-Control': 'private, max-age=10'},
         );
       }
-      if (url.pathname === '/api/auction/admin' && request.method === 'GET') {
+      if (url.pathname === '/api/sponsorship/admin' && request.method === 'GET') {
         await requireOwner(request, env, ctx);
-        return json(await ownerBids(db(env)));
+        return json(await ownerBookings(db(env)));
       }
       if (url.pathname === '/api/challenge' && request.method === 'GET') {
         const id = url.searchParams.get('id');
@@ -307,21 +309,21 @@ export default {
           return json({error: 'Invalid request origin.'}, 403);
         if (!request.headers.get('Content-Type')?.includes('application/json'))
           return json({error: 'JSON required.'}, 415);
-        if (url.pathname === '/api/auction/bids') {
+        if (url.pathname === '/api/sponsorship/bookings') {
           if (testMode(env)) await requireOwner(request, env, ctx);
           const player = playerId(request) ?? crypto.randomUUID();
           return json(
-            await submitBid(db(env), env, await readJSON(request, 8192), player),
+            await submitBooking(db(env), env, await readJSON(request, 8192), player),
             201,
             cookieHeader(player, url),
           );
         }
-        if (url.pathname === '/api/auction/payment') {
+        if (url.pathname === '/api/sponsorship/payment') {
           if (testMode(env)) await requireOwner(request, env, ctx);
           const data = await readJSON(request, 2048);
           if (typeof data.id !== 'string') return json({error: 'Invalid payment.'}, 400);
           const payment = await paymentStatus(db(env), env, data.id, playerId(request));
-          forget('auction:');
+          forget('sponsorship:');
           forget('sponsor');
           return json(payment);
         }
@@ -346,10 +348,10 @@ export default {
           ]);
           return json({ok: true});
         }
-        if (url.pathname === '/api/auction/admin') {
+        if (url.pathname === '/api/sponsorship/admin') {
           await requireOwner(request, env, ctx);
-          const review = await reviewBid(db(env), await readJSON(request, 8192));
-          forget('auction:');
+          const review = await reviewBooking(db(env), await readJSON(request, 8192));
+          forget('sponsorship:');
           forget('sponsor');
           return json(review);
         }
@@ -399,7 +401,7 @@ export default {
         if (url.pathname === '/api/events') {
           const data = await body(request),
             player = playerId(request);
-          const columns = {complete: 'completed', share: 'shared', card: 'card'};
+          const columns = {complete: 'completed', share: 'shared'};
           if (!player || typeof data.runId !== 'string' || !Object.hasOwn(columns, data.event))
             return json({error: 'Invalid event.'}, 400);
           const run = await db(env)

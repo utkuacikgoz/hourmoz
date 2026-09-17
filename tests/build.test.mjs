@@ -30,7 +30,6 @@ assert.match(
 );
 assert(!existsSync(site + '/vendor'), 'vendored three.js is only shipped inside the game bundle');
 assert(!existsSync(site + '/engine.mjs'), 'raw modules are not published');
-assert(!existsSync(site + '/sponsors.json'), 'sponsor configuration is not published');
 
 const worker = readFileSync('dist/server/index.js', 'utf8');
 assert(statSync('dist/server/index.js').size < 350 * 1024, 'Worker stays under 350 KB without embedded assets');

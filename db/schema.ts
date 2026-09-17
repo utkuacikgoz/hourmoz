@@ -56,13 +56,15 @@ export const visits = sqliteTable(
   t => [index('idx_visits_created').on(t.createdAt), index('idx_visits_player_created').on(t.playerId, t.createdAt)],
 );
 
-export const sponsorBids = sqliteTable(
-  'sponsor_bids',
+export const sponsorSlots = sqliteTable(
+  'sponsor_slots',
   {
     id: text('id').primaryKey(),
     playerId: text('player_id').notNull(),
     name: text('name').notNull(),
     url: text('url').notNull(),
+    startDay: text('start_day').notNull(),
+    days: integer('days').notNull(),
     amount: integer('amount').notNull(),
     status: text('status').notNull().default('checkout'),
     testMode: integer('test_mode').notNull().default(0),
@@ -73,9 +75,19 @@ export const sponsorBids = sqliteTable(
     hidden: integer('hidden').notNull().default(0),
   },
   t => [
-    index('idx_bids_status_amount').on(t.status, t.amount),
-    index('idx_bids_player_created').on(t.playerId, t.createdAt),
+    index('idx_slots_status_start').on(t.status, t.startDay),
+    index('idx_slots_player_created').on(t.playerId, t.createdAt),
   ],
+);
+// One row per booked UTC day and environment: the primary key makes double booking impossible.
+export const sponsorDays = sqliteTable(
+  'sponsor_days',
+  {
+    day: text('day').notNull(),
+    testMode: integer('test_mode').notNull().default(0),
+    slotId: text('slot_id').notNull(),
+  },
+  t => [primaryKey({columns: [t.day, t.testMode]}), index('idx_days_slot').on(t.slotId)],
 );
 export const presence = sqliteTable(
   'presence',

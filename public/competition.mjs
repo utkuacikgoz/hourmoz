@@ -1,6 +1,5 @@
 import {landing, analyticsEnabled} from './analytics.mjs';
 import {RULES_VERSION} from './rules.mjs';
-import {coastlines} from './geography.mjs';
 const $ = id => document.getElementById(id);
 let selected = 'run',
   result = null,
@@ -207,7 +206,6 @@ export function setupCompetition(pause) {
     $('status-panel').classList.add('hidden');
     $('status-toggle').setAttribute('aria-expanded', 'false');
   };
-  $('save-card').onclick = saveCard;
   $('share-score').onclick = async () => {
     if (!result) return;
     const url = new URL(location.origin + location.pathname);
@@ -265,62 +263,4 @@ async function refreshStatus() {
     $('status-heading').textContent = 'Status unavailable';
     $('status-detail').textContent = 'The official source could not be checked.';
   }
-}
-
-async function saveCard() {
-  if (!result) return;
-  const canvas = document.createElement('canvas');
-  canvas.width = 1200;
-  canvas.height = 630;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#0a2b38';
-  ctx.fillRect(0, 0, 1200, 630);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(620, 0, 580, 630);
-  ctx.clip();
-  ctx.fillStyle = '#3b5654';
-  for (const poly of coastlines) {
-    ctx.beginPath();
-    poly.forEach(([lon, lat], i) => {
-      const x = 650 + (lon - 55.0) * 220,
-        y = 80 + (27.6 - lat) * 210;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    });
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.fillStyle = '#ffc07a';
-  ctx.font = 'bold 64px Arial';
-  ctx.fillText('IS HORMUZ OPEN?', 60, 105);
-  ctx.fillStyle = '#bed3cb';
-  ctx.font = '24px Arial';
-  ctx.fillText(
-    (result.name || 'A player') + ' · ' + (result.mode === 'run' ? 'Tanker captain' : 'Iranian patrol'),
-    65,
-    165,
-  );
-  ctx.fillStyle = '#fff1cf';
-  ctx.font = 'bold 126px Arial';
-  ctx.fillText(result.score.toLocaleString(), 60, 320);
-  ctx.fillStyle = '#bed3cb';
-  ctx.font = '24px Arial';
-  ctx.fillText(result.rank ? '#' + result.rank + ' on the daily leaderboard' : 'POINTS', 65, 363);
-  ctx.fillStyle = '#ffc07a';
-  ctx.font = 'bold 36px Arial';
-  ctx.fillText('Same course. Beat that.', 65, 478);
-  ctx.fillStyle = '#8baaa9';
-  ctx.font = '20px Arial';
-  ctx.fillText(result.session?.day || new Date().toISOString().slice(0, 10), 65, 530);
-  ctx.fillText(location.host, 65, 572);
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) return;
-  const url = URL.createObjectURL(blob),
-    a = document.createElement('a');
-  a.href = url;
-  a.download = 'is-hormuz-open-' + result.score + '.png';
-  a.click();
-  track('card');
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

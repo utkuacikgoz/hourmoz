@@ -27,16 +27,20 @@ export function localDB(path = ':memory:') {
         async all() {
           return {results: sqlite.prepare(sql).all(...args)};
         },
-        async run() {
+        runSync() {
           return {success: true, meta: sqlite.prepare(sql).run(...args)};
+        },
+        async run() {
+          return this.runSync();
         },
       };
     },
+    // Like a D1 batch: one transaction, all or nothing. It runs synchronously so that two callers
+    // awaiting in parallel can never interleave inside each other's transaction.
     async batch(statements) {
       sqlite.exec('BEGIN');
       try {
-        const result = [];
-        for (const s of statements) result.push(await s.run());
+        const result = statements.map(s => s.runSync());
         sqlite.exec('COMMIT');
         return result;
       } catch (e) {

@@ -1,6 +1,6 @@
 # Is Hormuz Open?
 
-A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ad networks: the only placement is a single sponsor link sold openly on the sponsor page.
+A standalone naval arcade game with real Hormuz coastlines, a daily challenge, named leaderboards, and a sourced real-world status indicator. No ad networks: the only placement is a sponsor of the day, whose name is painted on the tankers and sold at a fixed price on the sponsor page.
 
 ## Run
 
@@ -37,10 +37,10 @@ The IMO status endpoint checks the current official Middle East page and caches 
 - Historical incident: [UK government report on Stena Impero, July 2019](https://www.gov.uk/government/news/iran-tanker-seizure-uk-government-response).
 - Current status: [IMO Middle East report](https://www.imo.org/en/mediacentre/hottopics/pages/middle-east-strait-of-hormuz.aspx).
 
-Three.js 0.180.0 is vendored with its MIT license. Sound is opt-in. Google Fonts are optional; system fonts are fallbacks. WebGL is required. Adding `?graphics=low` to the game URL starts at the lowest quality level (no shadows, reduced resolution) for weak devices; the game also lowers quality on its own when frames stay slow.
+Three.js 0.180.0 is vendored with its MIT license. The game has no sound. Google Fonts are optional; system fonts are fallbacks. WebGL is required. Adding `?graphics=low` to the game URL starts at the lowest quality level (no shadows, reduced resolution) for weak devices; the game also lowers quality on its own when frames stay slow.
 
 ## Release checks
 
-GitHub runs lint, formatting, the simulation, API, replay export lifecycle and security checks, a Wrangler dry run, and the browser round-trip on every push and pull request. When both check jobs pass on `main`, the deploy job applies pending D1 migrations and runs `wrangler deploy`, using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; without them it skips. Worker secrets (owner email, Stripe keys, Access audience, rate-limit key) are set once with `wrangler secret put` and persist across deploys. Bump `public/rules.mjs` whenever simulation rules change, then run `npm run golden:update`: the golden replay test pins a hash of the engine to the current rules version and fails when either changes alone. Older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
+GitHub runs lint, formatting, the simulation, API and security checks, a Wrangler dry run, and the browser round-trip on every push and pull request. When both check jobs pass on `main`, the deploy job applies pending D1 migrations and runs `wrangler deploy`, using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; without them it skips. Worker secrets (owner email, Stripe keys, Access audience, rate-limit key) are set once with `wrangler secret put` and persist across deploys. Bump `public/rules.mjs` whenever simulation rules change, then run `npm run golden:update`: the golden replay test pins a hash of the engine to the current rules version and fails when either changes alone. Older sessions and scores are excluded from the current competition. Rollback uses a previously saved Sites version, with database migrations kept backward-compatible.
 
 Rate limits use Cloudflare’s supplied client address, hashed per minute and keyed with `RATE_LIMIT_SECRET` when set, plus global request budgets. A client over its own cap never consumes the global budget, so one address cannot lock everyone else out. When that header is unavailable, requests share the fallback bucket. Distributed bots remain possible; watch request volume and tune limits before a large campaign. No raw client addresses are stored.
