@@ -60,14 +60,6 @@ async function refresh() {
       data,
     );
     table(
-      'days',
-      data.days.map(d => [d.day, d.players, d.starts, d.completed, d.shared]),
-    );
-    table(
-      'sources',
-      data.sources.map(r => [r.source, r.visits, r.playingVisits, rate(r.playingVisits, r.visits), r.starts, r.shared]),
-    );
-    table(
       'campaigns',
       data.campaigns.map(r => [r.name || r.sponsor, r.views, r.clicks, rate(r.clicks, r.views)]),
     );
