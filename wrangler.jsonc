@@ -15,6 +15,12 @@
     "run_worker_first": ["/api/*", "/owner-login"],
   },
   // Set APP_ORIGIN, AUCTION_OWNER_EMAIL and CF_ACCESS_AUD as variables and the Stripe keys as secrets in Worker settings.
-  // Add the D1 binding after creating the database in the selected Cloudflare account.
-  "d1_databases": [],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hourmuz",
+      "database_id": "365041da-91d0-47f4-8db9-9d6e7fe5af32",
+      "migrations_dir": "drizzle",
+    },
+  ],
 }
