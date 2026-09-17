@@ -166,6 +166,11 @@ try {
     await page.waitForTimeout(500);
     await page.keyboard.up(side);
     await page.keyboard.up('w');
+    // Never send a key once the results screen is up: PLAY AGAIN takes focus there.
+    if (await page.locator('#end-screen').isVisible()) {
+      ended = true;
+      break;
+    }
     if (step % 6 === 0) await page.keyboard.press('Space');
   }
   assert(ended, 'the round reached the results screen (clock ' + (await page.locator('#clock').textContent()) + ')');

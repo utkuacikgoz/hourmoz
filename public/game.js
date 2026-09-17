@@ -619,7 +619,10 @@ function end() {
     } catch {}
   }
   sound.play(game.win ? 'complete' : 'gameover');
-  $('retry').focus();
+  // Focus PLAY AGAIN only after a beat, so a key still being hammered from the round cannot skip the results.
+  setTimeout(() => {
+    if (game.phase === 'end' && $('end-screen').offsetParent !== null) $('retry').focus();
+  }, 700);
 }
 function handleEvents() {
   for (const e of game.events) {
