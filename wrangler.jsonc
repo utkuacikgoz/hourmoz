@@ -16,8 +16,8 @@
   },
   // AUCTION_OWNER_EMAIL, CF_ACCESS_AUD and the Stripe keys are Worker secrets (wrangler secret put), never committed.
   "vars": {"APP_ORIGIN": "https://ishormuzopen.fun"},
-  // Once the zone ishormuzopen.fun is active in this Cloudflare account, uncomment to bind it on deploy.
-  // "routes": [{ "pattern": "ishormuzopen.fun", "custom_domain": true }],
+  // Binds the domain on deploy; the zone must be active in this Cloudflare account first.
+  "routes": [{"pattern": "ishormuzopen.fun", "custom_domain": true}],
   "d1_databases": [
     {
       "binding": "DB",
