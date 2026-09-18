@@ -3,6 +3,8 @@ name: Live site check
 # and with Googlebot's user agent, and prints the status, headers and the start of each body.
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/wizardly-ptolemy-lbw24b]
 permissions:
   contents: read
 jobs:
