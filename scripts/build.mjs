@@ -20,6 +20,7 @@ const types = {
   '.json': 'application/json; charset=utf-8',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
@@ -76,6 +77,9 @@ for (const entry of await readdir('public', {withFileTypes: true})) {
       .filter(ref => !ref.startsWith('/assets/'));
     if (unresolved.length) throw new Error(`${entry.name} references unbundled files: ${unresolved.join(', ')}`);
     await writeFile(OUT + '/' + entry.name, html);
+  } else if (process.env.SITE_ORIGIN && /\.(xml|txt)$/.test(entry.name)) {
+    const text = await readFile('public/' + entry.name, 'utf8');
+    await writeFile(OUT + '/' + entry.name, text.replaceAll(CANONICAL_ORIGIN, new URL(process.env.SITE_ORIGIN).origin));
   } else await cp('public/' + entry.name, OUT + '/' + entry.name);
 }
 

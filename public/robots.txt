@@ -3,3 +3,5 @@ Allow: /
 Disallow: /api/
 Disallow: /sponsor-admin
 Disallow: /owner-login
+
+Sitemap: https://ishormuzopen.fun/sitemap.xml
