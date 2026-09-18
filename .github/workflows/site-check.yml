@@ -1,0 +1,25 @@
+name: Live site check
+# Run by hand from the Actions tab. Fetches the public files a search engine needs, as a plain client
+# and with Googlebot's user agent, and prints the status, headers and the start of each body.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: DNS
+        run: |
+          getent ahosts ishormuzopen.fun | head -4
+      - name: Fetch robots.txt, sitemap.xml and the home page
+        run: |
+          for path in /robots.txt /sitemap.xml /; do
+            for ua in "curl/8" "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"; do
+              echo "=================== $path   UA: $ua"
+              curl -sS -A "$ua" -D - -o body.txt --max-time 20 "https://ishormuzopen.fun$path" || echo "curl failed"
+              echo "--- body, first 12 lines"
+              head -12 body.txt
+              echo
+            done
+          done
