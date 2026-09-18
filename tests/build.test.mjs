@@ -31,6 +31,13 @@ assert.match(
 assert(!existsSync(site + '/vendor'), 'vendored three.js is only shipped inside the game bundle');
 assert(!existsSync(site + '/engine.mjs'), 'raw modules are not published');
 
+const sitemap = readFileSync(site + '/sitemap.xml', 'utf8');
+for (const path of ['/', '/sponsor', '/stats', '/terms', '/privacy'])
+  assert(sitemap.includes(`<loc>https://ishormuzopen.fun${path}</loc>`), 'sitemap lists ' + path);
+assert(!sitemap.includes('sponsor-admin'), 'sitemap leaves out the owner page');
+assert.match(readFileSync(site + '/robots.txt', 'utf8'), /^Sitemap: https:\/\/ishormuzopen\.fun\/sitemap\.xml$/m);
+for (const page of ['sponsor.html', 'stats.html', 'terms.html', 'privacy.html'])
+  assert.match(readFileSync(`${site}/${page}`, 'utf8'), /<link rel="canonical" href="https:\/\/ishormuzopen\.fun\//);
 const worker = readFileSync('dist/server/index.js', 'utf8');
 assert(statSync('dist/server/index.js').size < 350 * 1024, 'Worker stays under 350 KB without embedded assets');
 assert(!worker.includes('PCFSoftShadowMap'), 'Worker does not contain the renderer');

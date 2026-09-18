@@ -16,6 +16,8 @@ const types = {
   svg: 'image/svg+xml',
   webmanifest: 'application/manifest+json',
   txt: 'text/plain',
+  xml: 'application/xml',
+  ico: 'image/x-icon',
 };
 // Static files are served straight from public/ with the same security headers as production.
 createServer(async (req, res) => {
