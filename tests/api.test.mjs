@@ -227,6 +227,7 @@ console.log('PASS: status checks are coalesced and failures are cached.');
   const assetsEnv = {...env, ASSETS: {fetch: async r => new Response('asset ' + new URL(r.url).pathname)}};
   const asset = await worker.fetch(new Request(origin + '/assets/game-abc.js'), assetsEnv);
   assert.equal(await asset.text(), 'asset /assets/game-abc.js');
-  assert.equal(asset.headers.get('X-Frame-Options'), 'DENY');
+  assert.equal(asset.headers.get('X-Content-Type-Options'), 'nosniff');
+  assert.match(asset.headers.get('Content-Security-Policy'), /frame-ancestors 'self' https:\/\/buildhop\.io/);
 }
 console.log('PASS: cached reads skip the limiter, no-cache bypasses, static requests proxy to the assets binding.');
