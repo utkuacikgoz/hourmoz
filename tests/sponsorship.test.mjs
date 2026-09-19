@@ -207,6 +207,26 @@ try {
   assert.equal(refunds.size, 1);
   assert.equal((await fulfillSession(DB, env, sessions.get(resold.id))).status, 'paid');
   assert.equal((await sponsorFor(DB, day(14), 1)).id, resold.id);
+  // A payment presented in another currency counts by its USD amount, and only by that amount.
+  const local = booking(day(17));
+  await submitBooking(DB, env, local, player);
+  const converted = {
+    ...sessions.get(local.id),
+    currency: 'try',
+    amount_total: 76089,
+    currency_conversion: {source_currency: 'usd', amount_total: 1500, amount_subtotal: 1500, fx_rate: '50.726'},
+  };
+  await assert.rejects(
+    () =>
+      fulfillSession(DB, env, {
+        ...converted,
+        currency_conversion: {...converted.currency_conversion, amount_total: 100},
+      }),
+    /does not match/,
+  );
+  await assert.rejects(() => fulfillSession(DB, env, {...converted, currency_conversion: undefined}), /does not match/);
+  assert.equal((await fulfillSession(DB, env, converted)).status, 'paid');
+  assert.equal((await sponsorFor(DB, day(17), 1)).id, local.id);
   // A late payment on a released hold still wins when nobody took the dates meanwhile.
   const late = booking(day(15));
   await submitBooking(DB, env, late, player);
@@ -236,7 +256,7 @@ try {
   assert.equal(await sponsorFor(DB, day(16), 1), null);
   assert(!(await publicSponsorship(DB, env, 1)).booked.includes(day(16)));
   console.log(
-    'PASS: prices and tip link, booking validation, date holds, private checkouts, confirmed-payment activation, week ranges, concurrent bookings, hold expiry with refund or late activation, webhook signatures.',
+    'PASS: prices and tip link, booking validation, date holds, private checkouts, confirmed-payment activation, week ranges, concurrent bookings, local-currency payments, hold expiry with refund or late activation, webhook signatures.',
   );
 
   // Refunds, disputes and hidden placements take the sponsor out of the game; refunds also free the dates.
