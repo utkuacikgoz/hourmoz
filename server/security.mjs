@@ -107,13 +107,14 @@ export async function limitRequest(request, database, secret = null) {
 }
 
 const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self' https://buildhop.io https://*.buildhop.io";
 // Applied to every page and asset. The pages use no inline scripts or styles, so the policy can stay strict.
+// Framing is allowed only for the site itself and the BuildHop listing that previews it; frame-ancestors
+// is what current browsers honour, so no X-Frame-Options header is sent for pages.
 export function securityHeaders(url) {
   const headers = {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Content-Security-Policy': CSP,
   };

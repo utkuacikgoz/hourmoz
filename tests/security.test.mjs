@@ -79,9 +79,12 @@ const page = await worker.fetch(new Request('https://game.test/'), assetsEnv);
 assert.equal(await page.text(), 'asset /');
 assert.equal((await worker.fetch(new Request('https://game.test/missing.png'), {DB: db})).status, 404);
 assert.equal(page.status, 200);
-assert.match(page.headers.get('Content-Security-Policy'), /frame-ancestors 'none'/);
+assert.match(
+  page.headers.get('Content-Security-Policy'),
+  /frame-ancestors 'self' https:\/\/buildhop\.io https:\/\/\*\.buildhop\.io/,
+);
 assert.match(page.headers.get('Content-Security-Policy'), /script-src 'self'/);
-assert.equal(page.headers.get('X-Frame-Options'), 'DENY');
+assert.equal(page.headers.get('X-Frame-Options'), null);
 assert.equal(page.headers.get('Strict-Transport-Security'), 'max-age=31536000; includeSubDomains');
 const api = await worker.fetch(new Request('https://game.test/api/leaderboard?mode=run'), {DB: db});
 assert.equal(api.status, 200);
