@@ -230,11 +230,18 @@ export async function fulfillSession(db, env, session, now = Date.now()) {
   if (typeof id !== 'string') return {ignored: true};
   const slot = await db.prepare('SELECT * FROM sponsor_slots WHERE id = ?').bind(id).first();
   if (!slot) return {ignored: true};
+  // Stripe's adaptive pricing may present the price in the buyer's currency; the USD amount then
+  // travels in currency_conversion and is the one that has to match the booking.
+  const paidUsd =
+    session.currency === 'usd'
+      ? session.amount_total
+      : session.currency_conversion?.source_currency === 'usd'
+        ? session.currency_conversion.amount_total
+        : null;
   if (
     session.id !== slot.session_id ||
     session.mode !== 'payment' ||
-    session.currency !== 'usd' ||
-    session.amount_total !== slot.amount ||
+    paidUsd !== slot.amount ||
     session.client_reference_id !== slot.id ||
     typeof session.payment_intent !== 'string'
   )
